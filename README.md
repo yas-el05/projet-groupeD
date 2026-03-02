@@ -1,5 +1,5 @@
 # projet-groupeD
-Période du 16 février au 22 juin 2026
+Thématique choisie : 
 
 ## Membres du groupe
 - Yasmine EL MRAH
