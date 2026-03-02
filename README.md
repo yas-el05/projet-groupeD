@@ -4,7 +4,7 @@ Thématique choisie :
 ## Membres du groupe
 - Yasmine EL MRAH
 - Ayoub EL KASSMI
-- Taimim 
+- Taimim Jelouali
 - Aymen
 - Paul
 
