@@ -1,10 +1,9 @@
 # projet-groupeD
-Thématique choisie : 
+Thématique choisie : 3
 
 ## Membres du groupe
 - Yasmine EL MRAH
 - Ayoub EL KASSMI
 - Taimim 
 - Aymen
-- Paul
 
