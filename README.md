@@ -6,4 +6,5 @@ Thématique choisie : 3
 - El-mrah, Yasmine
 - Fgaier, Aymen
 - Jelouali, Taimim
+- Lagrange, Paul
 
