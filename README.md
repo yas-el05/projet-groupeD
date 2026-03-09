@@ -2,8 +2,8 @@
 Thématique choisie : 3
 
 ## Membres du groupe
-- Yasmine EL MRAH
-- Ayoub EL KASSMI
-- Taimim 
-- Aymen
+- El-kassmi, Ayoub
+- El-mrah, Yasmine
+- Fgaier, Aymen
+- Jelouali, Taimim
 
