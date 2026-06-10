@@ -2,9 +2,10 @@
 Thématique choisie : 3
 
 ## Membres du groupe
-- El-kassmi, Ayoub
-- El-mrah, Yasmine
-- Fgaier, Aymen
-- Jelouali, Taimim
-- Lagrange, Paul
+
+- Yasmine EL MRAH
+- Ayoub EL KASSMI
+- Taimim Jelouali
+- Aymen
+- Paul
 
