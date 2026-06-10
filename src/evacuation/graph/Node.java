@@ -2,55 +2,43 @@ package evacuation.graph;
 
 public class Node {
 
-    private String  id;
-    private String  nom;
+    private String id;
     private boolean bloque;
-    private int     x;
-    private int     y;
+    private double x;
+    private double y;
 
-    public Node(String id, String nom){
-        this(id, nom, 0, 0);
+    public Node(String id) {
+        this(id, 0, 0);
     }
 
-    public Node(String id, String nom, int x, int y){
-        this.id    = id;
-        this.nom   = nom;
+    public Node(String id, double x, double y) {
+        this.id = id;
         this.bloque = false;
-        this.x     = x;
-        this.y     = y;
+        this.x = x;
+        this.y = y;
     }
 
-    public boolean isBloque(){
-        return bloque;
-    }
+    public boolean isBloque() { return bloque; }
 
-    public void bloquer(){
+    public void bloquer() {
         this.bloque = true;
-        System.out.println("[Node] " + nom + " est bloqué.");
+        System.out.println("[Node] " + id + " est bloqué.");
     }
 
-    public void debloquer(){
+    public void debloquer() {
         this.bloque = false;
-        System.out.println("[Node] " + nom + " est débloqué.");
+        System.out.println("[Node] " + id + " est débloqué.");
     }
 
-    //getters
-    public String getId(){
-        return id;
-    }
-    public String getNom(){
-        return nom;
-    }
-    public int getX(){
-        return x;
-    }
-    public int getY(){
-        return y;
-    }
+    public String getId() { return id; }
+
+    public double getX() { return x; }
+    public double getY() { return y; }
+    public void setX(double x) { this.x = x; }
+    public void setY(double y) { this.y = y; }
 
     @Override
-    public String toString(){
-        return "Node{id='" + id + "', nom='" + nom + "', bloque=" + bloque + "}";
+    public String toString() {
+        return "Node{id='" + id + "', bloque=" + bloque + "}";
     }
 }
-
