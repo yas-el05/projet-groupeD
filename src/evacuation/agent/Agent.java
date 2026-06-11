@@ -134,13 +134,6 @@ public class Agent {
      * Retourne true si l'animation est encore en cours.
      */
     public boolean animerDeplacement(double vitesseAnim) {
-        // Si l'agent est arrivé, on le colle à sa position (la sortie)
-        if (etatDeplacement == EtatDeplacement.ARRIVE) {
-            displayX = position.getX();
-            displayY = position.getY();
-            noeudCible = null;
-            return false;
-        }
         // Si on est sur un nœud (pas en transit), affichage = position du nœud
         if (noeudCible == null || progressArete >= 1.0) {
             displayX = position.getX();
