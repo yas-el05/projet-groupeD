@@ -34,6 +34,23 @@ public class MainFrame extends JFrame {
     private JLabel   lblVit;
     private Timer    autoTimer;
 
+    // Textes
+    private static final String BTN_SEL_TXT         = "⬡ Sélection";
+    private static final String BTN_NOEUD_TXT       = "✚ Nœud";
+    private static final String BTN_SORTIE_TXT      = "🚪 Sortie";
+    private static final String BTN_ARETE_TXT       = "─ Arête";
+    private static final String BTN_DANGER_TXT      = "⚠ Danger";
+    private static final String BTN_AJOUT_AGENT_TXT = "👤+ Agent";
+    private static final String BTN_SUPPR_TXT       = "✖ Suppr. nœud";
+    private static final String BTN_SUPPR_AGENT_TXT = "✖ Suppr. agent";
+    private static final String BTN_INIT_TXT        = "⚙ Initialiser";
+    private static final String BTN_TICK_TXT        = "⏭ Tick +1";
+    private static final String BTN_PLAY_TXT        = "▶ Démarrer";
+    private static final String BTN_PAUSE_TXT       = "⏸ Pause";
+    private static final String BTN_REP_TXT         = "⟳ Répartir agents";
+
+
+
     // Stats
     private JLabel lblTick, lblDeplacement, lblPsycho, lblAgentInfo;
 
@@ -84,14 +101,14 @@ public class MainFrame extends JFrame {
 
         toolGroup = new ButtonGroup();
 
-        btnSel       = outil("⬡ Sélection",   "Sélectionner / déplacer nœuds (glisser)",      GraphRenderer.NODE_NORMAL.darker());
-        btnNoeud     = outil("✚ Nœud",         "Ajouter un nœud (clic gauche)",                 new Color(60, 180, 100));
-        btnSortie    = outil("🚪 Sortie",       "Ajouter une sortie",                            GraphRenderer.NODE_SORTIE_O);
-        btnArete     = outil("─ Arête",         "Relier 2 nœuds (clic 1er → 2e nœud)",         GraphRenderer.SEL_COLOR.darker());
-        btnDanger    = outil("⚠ Danger",        "Ajouter une zone de danger",                   GraphRenderer.NODE_DANGER_F);
-        btnAjoutAgent= outil("👤+ Agent",        "Ajouter un agent sur un nœud (clic gauche)",  GraphRenderer.AGENT_CALME.darker());
-        btnSuppr     = outil("✖ Suppr. nœud",  "Supprimer un nœud ou une arête (clic gauche)", new Color(180, 40, 40));
-        btnSupprAgent= outil("✖ Suppr. agent", "Supprimer un agent (clic gauche sur agent)",   new Color(200, 80, 30));
+        btnSel       = outil(BTN_SEL_TXT,         "Sélectionner / déplacer nœuds (glisser)",      GraphRenderer.NODE_NORMAL.darker());
+        btnNoeud     = outil(BTN_NOEUD_TXT,       "Ajouter un nœud (clic gauche)",                new Color(60, 180, 100));
+        btnSortie    = outil(BTN_SORTIE_TXT,      "Ajouter une sortie",                           GraphRenderer.NODE_SORTIE_O);
+        btnArete     = outil(BTN_ARETE_TXT,       "Relier 2 nœuds (clic 1er → 2e nœud)",          GraphRenderer.SEL_COLOR.darker());
+        btnDanger    = outil(BTN_DANGER_TXT,      "Ajouter une zone de danger",                   GraphRenderer.NODE_DANGER_F);
+        btnAjoutAgent= outil(BTN_AJOUT_AGENT_TXT, "Ajouter un agent sur un nœud (clic gauche)",   GraphRenderer.AGENT_CALME.darker());
+        btnSuppr     = outil(BTN_SUPPR_TXT,       "Supprimer un nœud ou une arête (clic gauche)", new Color(180, 40, 40));
+        btnSupprAgent= outil(BTN_SUPPR_AGENT_TXT, "Supprimer un agent (clic gauche sur agent)",   new Color(200, 80, 30));
 
         for (JToggleButton b : new JToggleButton[]{
                 btnSel, btnNoeud, btnSortie, btnArete, btnDanger,
@@ -113,9 +130,9 @@ public class MainFrame extends JFrame {
         bar.add(separateur());
 
         // Contrôles simulation
-        btnInit = simBtn("⚙ Initialiser", ACCENT);
-        btnTick = simBtn("⏭ Tick +1",      new Color(80, 160, 220));
-        btnPlay = simBtn("▶ Démarrer",     ACCENT2);
+        btnInit = simBtn(BTN_INIT_TXT, ACCENT);
+        btnTick = simBtn(BTN_TICK_TXT, new Color(80, 160, 220));
+        btnPlay = simBtn(BTN_PLAY_TXT, ACCENT2);
         btnTick.setEnabled(false);
         btnPlay.setEnabled(false);
 
@@ -139,7 +156,7 @@ public class MainFrame extends JFrame {
 
         bar.add(separateur());
 
-        JButton btnRep = simBtn("⟳ Répartir agents", new Color(160, 100, 220));
+        JButton btnRep = simBtn(BTN_REP_TXT, new Color(160, 100, 220));
         btnRep.addActionListener(e -> { engine.repartirAgentsSurSorties(); renderer.rafraichir(); });
         bar.add(btnRep);
 
@@ -357,10 +374,10 @@ public class MainFrame extends JFrame {
 
     private void onPlay(ActionEvent e) {
         if (autoTimer.isRunning()) {
-            autoTimer.stop(); btnPlay.setText("▶ Démarrer"); btnPlay.setForeground(ACCENT2);
+            autoTimer.stop(); btnPlay.setText(BTN_PLAY_TXT); btnPlay.setForeground(ACCENT2);
         } else {
             autoTimer.setDelay(sliderVit.getValue()); autoTimer.start();
-            btnPlay.setText("⏸ Pause"); btnPlay.setForeground(new Color(220, 160, 40));
+            btnPlay.setText(BTN_PAUSE_TXT); btnPlay.setForeground(new Color(220, 160, 40));
         }
     }
 
@@ -368,7 +385,7 @@ public class MainFrame extends JFrame {
         if (!engine.isEnCours()) return;
         engine.tick(); renderer.rafraichir(); majStats();
         if (!engine.isEnCours()) {
-            autoTimer.stop(); btnPlay.setText("▶ Démarrer"); btnPlay.setForeground(ACCENT2);
+            autoTimer.stop(); btnPlay.setText(BTN_PLAY_TXT); btnPlay.setForeground(ACCENT2);
             btnTick.setEnabled(false); btnPlay.setEnabled(false);
             log("=== Simulation terminée ===");
         }
