@@ -130,7 +130,7 @@ public class GraphRenderer extends JPanel {
 
     // ── Setters for callbacks ─────────────────────────────────────────────────
 
-    /** @param cb callback invoked when an agent is selected *
+    //** @param cb callback invoked when an agent is selected *
     public void setOnAgentSelected(Consumer<Agent> cb) { this.onAgentSelected = cb; }
     public void setOnNodeSelected(Consumer<Node> cb) { this.onNodeSelected = cb; }
     public void setOnEdgeAdded(BiConsumer<Node, Node> cb) { this.onEdgeAdded = cb; }
