@@ -117,36 +117,23 @@ public class Edge implements Serializable {
      */
     public void resetStats() { agentsPassed = 0; }
 
-    /** @return the source node */
     public Node getSource() { return source; }
-    /** @return the destination node */
     public Node getDestination() { return destination; }
-    /** @return true if this edge is currently available */
     public boolean isAvailable() { return available; }
-    /** @return the base weight (before speed modifier) */
     public double getBaseWeight() { return weight; }
-    /** @return the block type */
     public BlockType getBlockType() { return blockType; }
-    /** @return the number of agents currently in transit on this edge */
     public int getAgentsInTransit() { return agentsInTransit; }
-    /** @return the maximum agent capacity of this edge */
     public int getCapacity() { return capacity; }
-    /** @param c new capacity (minimum 1) */
     public void setCapacity(int c) { this.capacity = Math.max(1, c); }
 
-    /** @return true if this edge is directed (one-way) */
     public boolean isDirected() { return directed; }
-    /** @param directed true to make this edge one-way (source→destination) */
     public void setDirected(boolean directed) { this.directed = directed; }
 
-    /** @return the speed modifier (1.0=normal, &gt;1.0=faster, &lt;1.0=slower) */
     public double getSpeedModifier() { return speedModifier; }
-    /** @param speedModifier the new speed modifier (must be &gt; 0) */
     public void setSpeedModifier(double speedModifier) {
         this.speedModifier = Math.max(0.01, speedModifier);
     }
 
-    /** @return total agents that have transited this edge */
     public int getAgentsPassed() { return agentsPassed; }
 
     // ── Deprecated French-named aliases ──────────────────────────────────────
