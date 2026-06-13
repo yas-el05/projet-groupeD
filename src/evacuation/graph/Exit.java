@@ -63,18 +63,9 @@ public class Exit extends Node {
      */
     public boolean isOpen() { return open; }
 
-    /**
-     * Returns the evacuation capacity of this exit.
-     *
-     * @return capacity
-     */
     public int getCapacity() { return capacity; }
 
-    /**
-     * Sets the evacuation capacity of this exit.
-     *
-     * @param capacity the new capacity (minimum 1)
-     */
+  
     public void setCapacity(int capacity) { this.capacity = Math.max(1, capacity); }
 
     // Deprecated aliases for backward compatibility with Sortie
