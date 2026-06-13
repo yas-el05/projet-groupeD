@@ -144,7 +144,7 @@ public class MainFrame extends JFrame {
 
         row2.add(btnInit); row2.add(btnTick); row2.add(btnPlay);
 
-        sliderSpeed = new JSlider(100, 3000, 1200);
+        sliderSpeed = new JSlider(100, 10000, 1200);
         sliderSpeed.setInverted(true);
         sliderSpeed.setPreferredSize(new Dimension(110, 26));
         sliderSpeed.setBackground(BG_PANEL);
