@@ -86,7 +86,10 @@ public class SimulationEngine implements Serializable {
         }
 
         Agent.Behavior[] behaviors = Agent.Behavior.values();
-        Agent.PsychologicalState[] psychStates = Agent.PsychologicalState.values();
+        Agent.PsychologicalState[] psychStates = {
+            Agent.PsychologicalState.CALM,
+            Agent.PsychologicalState.PANIC
+        };
         Agent.DestinationMode[] modes = Agent.DestinationMode.values();
 
         for (int i = 0; i < count; i++) {
