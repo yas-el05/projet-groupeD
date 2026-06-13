@@ -102,22 +102,15 @@ public class Node implements Serializable {
         agentsPassed = 0;
     }
 
-    /** @return the unique identifier of this node */
     public String getId() { return id; }
 
-    /** @return the x coordinate */
     public double getX() { return x; }
-    /** @return the y coordinate */
     public double getY() { return y; }
 
-    /** @param x the new x coordinate */
     public void setX(double x) { this.x = x; }
-    /** @param y the new y coordinate */
     public void setY(double y) { this.y = y; }
-
-    /** @return the maximum agent capacity of this node */
+    
     public int getCapacity() { return capacity; }
-    /** @param c the new capacity (minimum 1) */
     public void setCapacity(int c) { this.capacity = Math.max(1, c); }
 
     // Deprecated French-named aliases kept for backward compatibility
