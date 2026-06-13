@@ -292,10 +292,7 @@ public class Graph implements Serializable {
         for (Node n : nodes) n.resetStats();
         for (Edge e : edges) e.resetStats();
     }
-
-    /** @return the list of all nodes in the graph */
     public List<Node> getNodes() { return nodes; }
-    /** @return the list of all edges in the graph */
     public List<Edge> getEdges() { return edges; }
 
     // ── Deprecated French-named aliases ──────────────────────────────────────
