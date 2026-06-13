@@ -1,41 +1,201 @@
 package evacuation.graph;
 
-public class Edge {
+import java.io.Serializable;
+
+/**
+ * Represents an edge (connection) between two nodes in the evacuation graph.
+ * An edge has a weight, availability status, block type, agent transit tracking,
+ * direction flag, and a speed modifier.
+ */
+public class Edge implements Serializable {
+
+    private static final long serialVersionUID = 1L;
+
+    /**
+     * The type of blockage affecting this edge.
+     */
+    public enum BlockType {
+        /** No blockage. */
+        NONE,
+        /** Blocked by fire. */
+        FIRE,
+        /** Blocked by flood. */
+        FLOOD
+    }
 
     private Node source;
     private Node destination;
-    private double poids;
-    private boolean disponible;
-    /** Nombre d'agents actuellement en transit sur cette arête. */
-    private int agentsEnTransit;
+    private double weight;
+    private boolean available;
+    private BlockType blockType;
+    private int agentsInTransit;
+    private int capacity = 3;
+    /** Whether this edge is directed (one-way: source→destination only). */
+    private boolean directed = false;
+    /** Speed modifier: 1.0=normal, 2.0=fast, 0.5=slow. Affects Dijkstra cost. */
+    private double speedModifier = 1.0;
+    /** Total number of agents that have transited this edge. */
+    private int agentsPassed = 0;
 
-    public Edge(Node source, Node destination, double poids) {
-        this.source        = source;
-        this.destination   = destination;
-        this.poids         = poids;
-        this.disponible    = true;
-        this.agentsEnTransit = 0;
+    /**
+     * Constructs a bidirectional edge between two nodes with the given weight.
+     *
+     * @param source      the source node
+     * @param destination the destination node
+     * @param weight      the base weight (cost) of this edge
+     */
+    public Edge(Node source, Node destination, double weight) {
+        this.source          = source;
+        this.destination     = destination;
+        this.weight          = weight;
+        this.available       = true;
+        this.blockType       = BlockType.NONE;
+        this.agentsInTransit = 0;
     }
 
-    public double getPoids() {
-        return disponible ? poids : Double.POSITIVE_INFINITY;
+    /**
+     * Returns the effective weight of this edge for pathfinding.
+     * If the edge is unavailable, returns positive infinity.
+     * If a speed modifier is set, divides the weight by it (faster = lower cost).
+     *
+     * @return the effective weight, or {@link Double#POSITIVE_INFINITY} if unavailable
+     */
+    public double getWeight() {
+        return available ? weight / speedModifier : Double.POSITIVE_INFINITY;
     }
 
-    public void bloquer()   { this.disponible = false; }
-    public void debloquer() { this.disponible = true;  }
+    /**
+     * Blocks this edge with the default FIRE blockage type.
+     */
+    public void block() {
+        this.available = false;
+        if (this.blockType == BlockType.NONE) this.blockType = BlockType.FIRE;
+    }
 
-    public void ajouterAgent()    { agentsEnTransit = Math.max(0, agentsEnTransit + 1); }
-    public void retirerAgent()    { agentsEnTransit = Math.max(0, agentsEnTransit - 1); }
-    public int  getAgentsEnTransit() { return agentsEnTransit; }
+    /**
+     * Blocks this edge due to fire.
+     */
+    public void blockByFire() {
+        this.available = false;
+        this.blockType = BlockType.FIRE;
+    }
 
-    public Node    getSource()      { return source; }
-    public Node    getDestination() { return destination; }
-    public boolean isDisponible()   { return disponible; }
-    public double  getPoidsBase()   { return poids; }
+    /**
+     * Blocks this edge due to flooding.
+     */
+    public void blockByFlood() {
+        this.available = false;
+        this.blockType = BlockType.FLOOD;
+    }
+
+    /**
+     * Unblocks this edge, restoring it to full availability.
+     */
+    public void unblock() {
+        this.available = true;
+        this.blockType = BlockType.NONE;
+    }
+
+    /**
+     * Adds an agent to the in-transit count.
+     */
+    public void addAgent() { agentsInTransit = Math.max(0, agentsInTransit + 1); }
+
+    /**
+     * Removes an agent from the in-transit count.
+     */
+    public void removeAgent() { agentsInTransit = Math.max(0, agentsInTransit - 1); }
+
+    /**
+     * Records that an agent has fully transited this edge.
+     * Increments the agentsPassed counter.
+     */
+    public void recordTransit() { agentsPassed++; }
+
+    /**
+     * Resets the agentsPassed counter to zero.
+     */
+    public void resetStats() { agentsPassed = 0; }
+
+    /** @return the source node */
+    public Node getSource() { return source; }
+    /** @return the destination node */
+    public Node getDestination() { return destination; }
+    /** @return true if this edge is currently available */
+    public boolean isAvailable() { return available; }
+    /** @return the base weight (before speed modifier) */
+    public double getBaseWeight() { return weight; }
+    /** @return the block type */
+    public BlockType getBlockType() { return blockType; }
+    /** @return the number of agents currently in transit on this edge */
+    public int getAgentsInTransit() { return agentsInTransit; }
+    /** @return the maximum agent capacity of this edge */
+    public int getCapacity() { return capacity; }
+    /** @param c new capacity (minimum 1) */
+    public void setCapacity(int c) { this.capacity = Math.max(1, c); }
+
+    /** @return true if this edge is directed (one-way) */
+    public boolean isDirected() { return directed; }
+    /** @param directed true to make this edge one-way (source→destination) */
+    public void setDirected(boolean directed) { this.directed = directed; }
+
+    /** @return the speed modifier (1.0=normal, &gt;1.0=faster, &lt;1.0=slower) */
+    public double getSpeedModifier() { return speedModifier; }
+    /** @param speedModifier the new speed modifier (must be &gt; 0) */
+    public void setSpeedModifier(double speedModifier) {
+        this.speedModifier = Math.max(0.01, speedModifier);
+    }
+
+    /** @return total agents that have transited this edge */
+    public int getAgentsPassed() { return agentsPassed; }
+
+    // ── Deprecated French-named aliases ──────────────────────────────────────
+    /** @deprecated Use {@link #getWeight()} */
+    @Deprecated public double getPoids() { return getWeight(); }
+    /** @deprecated Use {@link #isAvailable()} */
+    @Deprecated public boolean isDisponible() { return available; }
+    /** @deprecated Use {@link #getBaseWeight()} */
+    @Deprecated public double getPoidsBase() { return weight; }
+    /** @deprecated Use {@link #getBlockType()} */
+    @Deprecated public BlockType getTypeBlocage() { return blockType; }
+    /** @deprecated Use {@link #addAgent()} */
+    @Deprecated public void ajouterAgent() { addAgent(); }
+    /** @deprecated Use {@link #removeAgent()} */
+    @Deprecated public void retirerAgent() { removeAgent(); }
+    /** @deprecated Use {@link #getAgentsInTransit()} */
+    @Deprecated public int getAgentsEnTransit() { return agentsInTransit; }
+    /** @deprecated Use {@link #getCapacity()} */
+    @Deprecated public int getCapacite() { return capacity; }
+    /** @deprecated Use {@link #setCapacity(int)} */
+    @Deprecated public void setCapacite(int c) { setCapacity(c); }
+    /** @deprecated Use {@link #block()} */
+    @Deprecated public void bloquer() { block(); }
+    /** @deprecated Use {@link #blockByFire()} */
+    @Deprecated public void bloquerParFeu() { blockByFire(); }
+    /** @deprecated Use {@link #blockByFlood()} */
+    @Deprecated public void bloquerParInondation() { blockByFlood(); }
+    /** @deprecated Use {@link #unblock()} */
+    @Deprecated public void debloquer() { unblock(); }
+
+    // Deprecated inner enum for backward compatibility
+    /** @deprecated Use {@link BlockType} */
+    @Deprecated
+    public enum TypeBlocage {
+        AUCUN, FEU, INONDATION;
+        public BlockType toBlockType() {
+            switch (this) {
+                case FEU:       return BlockType.FIRE;
+                case INONDATION: return BlockType.FLOOD;
+                default:        return BlockType.NONE;
+            }
+        }
+    }
 
     @Override
     public String toString() {
         return "Edge{" + source.getId() + " → " + destination.getId()
-             + ", poids=" + poids + ", dispo=" + disponible + "}";
+             + ", weight=" + weight + ", available=" + available
+             + ", blockType=" + blockType + ", directed=" + directed
+             + ", speedModifier=" + speedModifier + "}";
     }
 }

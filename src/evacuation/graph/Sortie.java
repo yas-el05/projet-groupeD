@@ -1,30 +1,27 @@
 package evacuation.graph;
 
-public class Sortie extends Node {
+/**
+ * @deprecated Use {@link Exit} instead.
+ * Deprecated backward-compatibility wrapper that extends Exit.
+ */
+@Deprecated
+class Sortie extends Exit {
 
-    private int capacite;
-    private boolean estOuverte;
+    private static final long serialVersionUID = 1L;
 
-    public Sortie(String id, int capacite) {
-        super(id);
-        this.capacite = capacite;
-        this.estOuverte = true;
+    /**
+     * @deprecated Use {@link Exit#Exit(String, int)} instead.
+     */
+    @Deprecated
+    Sortie(String id, int capacity) {
+        super(id, capacity);
     }
 
-    public Sortie(String id, double x, double y, int capacite) {
-        super(id, x, y);
-        this.capacite = capacite;
-        this.estOuverte = true;
-    }
-
-    public void ouvrir()  { this.estOuverte = true;  System.out.println("[Sortie] " + getId() + " est ouverte."); }
-    public void fermer()  { this.estOuverte = false; System.out.println("[Sortie] " + getId() + " est fermée."); }
-
-    public int     getCapacite()   { return capacite; }
-    public boolean isEstOuverte()  { return estOuverte; }
-
-    @Override
-    public String toString() {
-        return "Sortie{id='" + getId() + "', capacite=" + capacite + ", ouverte=" + estOuverte + "}";
+    /**
+     * @deprecated Use {@link Exit#Exit(String, double, double, int)} instead.
+     */
+    @Deprecated
+    Sortie(String id, double x, double y, int capacity) {
+        super(id, x, y, capacity);
     }
 }

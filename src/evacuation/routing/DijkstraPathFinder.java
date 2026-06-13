@@ -3,34 +3,47 @@ package evacuation.routing;
 import evacuation.graph.Graph;
 import evacuation.graph.Node;
 
+import java.io.Serializable;
 import java.util.*;
 
-public class DijkstraPathFinder implements PathFinder {
+/**
+ * Pathfinder implementation using Dijkstra's algorithm.
+ * Computes shortest weighted paths on the evacuation graph.
+ */
+public class DijkstraPathFinder implements PathFinder, Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     private Graph graph;
-    private Map<String, Double> distances; // id nœud → distance depuis source
-    private List<Node> dernierChemin;
+    private Map<String, Double> distances;
+    private List<Node> lastPath;
 
+    /**
+     * Constructs a DijkstraPathFinder for the given graph.
+     *
+     * @param graph the evacuation graph to search
+     */
     public DijkstraPathFinder(Graph graph) {
-        this.graph = graph;
+        this.graph    = graph;
         this.distances = new HashMap<>();
-        this.dernierChemin = new ArrayList<>();
+        this.lastPath  = new ArrayList<>();
     }
 
+    /**
+     * {@inheritDoc}
+     * Uses Dijkstra's algorithm with edge weights that account for speed modifiers.
+     */
     @Override
-    public List<Node> calculerChemin(Node src, Node dest) {
-
+    public List<Node> findPath(Node src, Node dest) {
         Map<String, Double> dist = new HashMap<>();
-        Map<String, String> prev = new HashMap<>();  // id → id prédécesseur
-        Set<String> visited      = new HashSet<>();
+        Map<String, String> prev = new HashMap<>();
+        Set<String> visited = new HashSet<>();
 
-        // Initialisation
         for (Node n : graph.getNodes()) {
             dist.put(n.getId(), Double.POSITIVE_INFINITY);
         }
         dist.put(src.getId(), 0.0);
 
-        // File de priorité : (distance, nœud)
         PriorityQueue<Node> queue = new PriorityQueue<>(
             Comparator.comparingDouble(n -> dist.getOrDefault(n.getId(), Double.POSITIVE_INFINITY))
         );
@@ -40,12 +53,13 @@ public class DijkstraPathFinder implements PathFinder {
             Node u = queue.poll();
             if (visited.contains(u.getId())) continue;
             visited.add(u.getId());
-
             if (u.equals(dest)) break;
 
-            for (Node v : graph.getVoisins(u)) {
+            for (Node v : graph.getNeighbors(u)) {
                 if (visited.contains(v.getId())) continue;
-                double alt = dist.get(u.getId()) + graph.getPoids(u, v);
+                Double distU = dist.get(u.getId());
+                if (distU == null) continue;
+                double alt = distU + graph.getWeight(u, v);
                 if (alt < dist.getOrDefault(v.getId(), Double.POSITIVE_INFINITY)) {
                     dist.put(v.getId(), alt);
                     prev.put(v.getId(), u.getId());
@@ -54,39 +68,43 @@ public class DijkstraPathFinder implements PathFinder {
             }
         }
 
-        // Reconstruction du chemin
-        dernierChemin = reconstruireChemin(prev, src, dest);
+        lastPath  = reconstructPath(prev, src, dest);
         distances = dist;
-        return dernierChemin;
+        return lastPath;
     }
 
-    private List<Node> reconstruireChemin(Map<String, String> prev, Node src, Node dest) {
-        LinkedList<Node> chemin = new LinkedList<>();
+    private List<Node> reconstructPath(Map<String, String> prev, Node src, Node dest) {
+        LinkedList<Node> path = new LinkedList<>();
         String current = dest.getId();
         while (current != null) {
             Node n = graph.getNode(current);
             if (n == null) return new ArrayList<>();
-            chemin.addFirst(n);
+            path.addFirst(n);
             current = prev.get(current);
         }
-        // Vérifie que le chemin commence bien à src
-        if (chemin.isEmpty() || !chemin.getFirst().equals(src)) {
+        if (path.isEmpty() || !path.getFirst().equals(src)) {
             return new ArrayList<>();
         }
-        return chemin;
+        return path;
     }
 
+    /** {@inheritDoc} */
     @Override
-    public void recalculer() {
-        // Réinitialise les distances mémorisées
+    public void reset() {
         distances.clear();
     }
 
+    /** {@inheritDoc} */
     @Override
-    public List<Node> getPlusCourt() {
-        return dernierChemin;
+    public List<Node> getLastPath() {
+        return lastPath;
     }
 
+    /**
+     * Returns the distance map from the last computed path.
+     *
+     * @return map of node ID to distance from last source
+     */
     public Map<String, Double> getDistances() {
         return distances;
     }

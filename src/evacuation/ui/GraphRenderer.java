@@ -1,11 +1,11 @@
 package evacuation.ui;
 
 import evacuation.agent.Agent;
+import evacuation.graph.DangerZone;
 import evacuation.graph.Edge;
+import evacuation.graph.Exit;
 import evacuation.graph.Graph;
 import evacuation.graph.Node;
-import evacuation.graph.Sortie;
-import evacuation.graph.ZoneDanger;
 import evacuation.simulation.SimulationEngine;
 
 import javax.swing.*;
@@ -17,70 +17,100 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
- * Panneau de rendu du graphe.
- *
- * Deux timers :
- *  - animTimer (60 fps) : anime le glissement des agents sur les arêtes
- *  - (le tick logique est piloté par MainFrame)
+ * Swing panel that renders the evacuation graph and its agents.
+ * Runs a 60 fps animation timer to smoothly move agents along edges.
+ * Supports multiple interaction modes for editing the graph.
  */
 public class GraphRenderer extends JPanel {
 
-    // ── Constantes ─────────────────────────────────────────────────────────────
+    // ── Constants ─────────────────────────────────────────────────────────────
     private static final int    NODE_RADIUS    = 24;
     private static final int    AGENT_RADIUS   = 10;
     static final double         SCALE          = 90.0;
     static final int            OFFSET         = 70;
-    private static final double MIN_DIST_NOEUD = 0.7;
-    /** Vitesse d'animation par frame (proportion de l'arête parcourue). */
-    private static final double ANIM_SPEED     = 0.10; // 10 frames pour traverser une arête
+    private static final double MIN_DIST_NODE  = 0.7;
 
-    // ── Palette ────────────────────────────────────────────────────────────────
+    // ── Color palette ─────────────────────────────────────────────────────────
     static final Color BG              = new Color(15, 20, 32);
     static final Color GRID            = new Color(30, 38, 55);
     static final Color NODE_NORMAL     = new Color(60, 120, 220);
     static final Color NODE_CONGESTION = new Color(20, 50, 160);
-    static final Color NODE_SORTIE_O   = new Color(40, 200, 110);
-    static final Color NODE_SORTIE_F   = new Color(90, 100, 120);
+    static final Color NODE_EXIT_OPEN  = new Color(40, 200, 110);
+    static final Color NODE_EXIT_CLOSED = new Color(90, 100, 120);
     static final Color NODE_DANGER_F   = new Color(220, 60, 30);
     static final Color NODE_DANGER_I   = new Color(40, 100, 210);
     static final Color NODE_DANGER_P   = new Color(180, 40, 180);
+    static final Color NODE_THREATENED = new Color(220, 130, 20);
     static final Color EDGE_FREE       = new Color(70, 95, 140);
     static final Color EDGE_CONG       = new Color(220, 60, 30);
     static final Color EDGE_BLOCKED    = new Color(160, 30, 30);
-    static final Color AGENT_CALME     = new Color(255, 225, 50);
-    static final Color AGENT_PANIQUE   = new Color(255, 120, 30);
-    static final Color AGENT_FOLIE     = new Color(210, 50, 210);
-    static final Color AGENT_BLOQUE    = new Color(190, 40, 40);
-    static final Color AGENT_ARRIVE    = new Color(100, 220, 100);
+    static final Color EDGE_FIRE       = new Color(230, 50, 20);
+    static final Color EDGE_FLOOD      = new Color(100, 120, 150);
+    static final Color AGENT_CALM      = new Color(255, 225, 50);
+    static final Color AGENT_PANIC     = new Color(255, 120, 30);
+    static final Color AGENT_MADNESS   = new Color(210, 50, 210);
+    static final Color AGENT_BLOCKED   = new Color(190, 40, 40);
+    static final Color AGENT_ARRIVED   = new Color(100, 220, 100);
     static final Color SEL_COLOR       = new Color(0, 215, 255);
     static final Color TEXT            = new Color(205, 215, 235);
 
-    // ── État ───────────────────────────────────────────────────────────────────
+    // Deprecated aliases for backward compatibility
+    /** @deprecated Use NODE_EXIT_OPEN */
+    @Deprecated static final Color NODE_SORTIE_O = NODE_EXIT_OPEN;
+    /** @deprecated Use NODE_EXIT_CLOSED */
+    @Deprecated static final Color NODE_SORTIE_F = NODE_EXIT_CLOSED;
+    /** @deprecated Use AGENT_CALM */
+    @Deprecated static final Color AGENT_CALME = AGENT_CALM;
+    /** @deprecated Use AGENT_PANIC */
+    @Deprecated static final Color AGENT_PANIQUE = AGENT_PANIC;
+    /** @deprecated Use AGENT_MADNESS */
+    @Deprecated static final Color AGENT_FOLIE = AGENT_MADNESS;
+    /** @deprecated Use AGENT_BLOCKED */
+    @Deprecated static final Color AGENT_BLOQUE = AGENT_BLOCKED;
+    /** @deprecated Use AGENT_ARRIVED */
+    @Deprecated static final Color AGENT_ARRIVE = AGENT_ARRIVED;
+    /** @deprecated Use EDGE_FIRE */
+    @Deprecated static final Color EDGE_FEU = EDGE_FIRE;
+    /** @deprecated Use EDGE_FLOOD */
+    @Deprecated static final Color EDGE_INONDATION = EDGE_FLOOD;
+    /** @deprecated Use NODE_THREATENED */
+    @Deprecated static final Color NODE_MENACE = NODE_THREATENED;
+
+    // ── State ─────────────────────────────────────────────────────────────────
     private SimulationEngine engine;
-    private Agent   agentSelectionne;
-    private Node    noeudSurvole;
-    private Edge    areteSurvolee;
-    private Node    noeudDragged;
+    private Agent   selectedAgent;
+    private Node    hoveredNode;
+    private Edge    hoveredEdge;
+    private Node    draggedNode;
     private Point   dragStart;
 
-    public enum Mode { SELECTION, AJOUT_NOEUD, AJOUT_SORTIE, AJOUT_ARETE, AJOUT_DANGER,
-                       AJOUT_AGENT, SUPPRESSION, SUPPRESSION_AGENT }
-    private Mode mode = Mode.SELECTION;
-    private Node premierNoeudArete;
-    private Point souris;
+    /**
+     * Interaction modes for the renderer.
+     */
+    public enum Mode {
+        SELECTION, AJOUT_NOEUD, AJOUT_SORTIE, AJOUT_ARETE, AJOUT_DANGER,
+        AJOUT_AGENT, SUPPRESSION, SUPPRESSION_AGENT, SUPPRESSION_ARETE
+    }
 
-    /** Timer d'animation — 60 fps, indépendant du timer de simulation. */
+    private Mode mode = Mode.SELECTION;
+    private Node firstEdgeNode;
+    private Point mousePos;
+
     private final Timer animTimer;
 
-    // ── Callbacks ──────────────────────────────────────────────────────────────
-    private Consumer<Agent>        onAgentSel;
-    private Consumer<Node>         onNoeudSel;
-    private BiConsumer<Node, Node> onAreteAjoutee;
-    private Consumer<Node>         onNoeudAjoute;
-    private Consumer<Node>         onNoeudSupprime;
-    private Consumer<Edge>         onAreteSupprimee;
+    // ── Callbacks ─────────────────────────────────────────────────────────────
+    private Consumer<Agent>        onAgentSelected;
+    private Consumer<Node>         onNodeSelected;
+    private BiConsumer<Node, Node> onEdgeAdded;
+    private Consumer<Node>         onNodeAdded;
+    private Consumer<Node>         onNodeRemoved;
+    private Consumer<Edge>         onEdgeRemoved;
 
-    // ── Constructeur ───────────────────────────────────────────────────────────
+    /**
+     * Constructs a GraphRenderer for the given simulation engine.
+     *
+     * @param engine the simulation engine to render
+     */
     public GraphRenderer(SimulationEngine engine) {
         this.engine = engine;
         setBackground(BG);
@@ -89,188 +119,281 @@ public class GraphRenderer extends JPanel {
         initMouse();
         initKeys();
 
-        // Timer d'animation 60 fps
-        animTimer = new Timer(16, e -> {
-            boolean besoinRepaint = false;
+        animTimer = new Timer(16, ev -> {
             for (Agent a : engine.getAgents()) {
-                if (a.animerDeplacement(ANIM_SPEED)) besoinRepaint = true;
+                a.animateMovement(a.getAnimationSpeed());
             }
-            repaint(); // toujours repeindre pour que le drag soit fluide aussi
+            repaint();
         });
         animTimer.start();
     }
 
-    // ── Setters ────────────────────────────────────────────────────────────────
-    public void setOnAgentSelectionne(Consumer<Agent> cb)        { this.onAgentSel = cb; }
-    public void setOnNoeudSelectionne(Consumer<Node> cb)         { this.onNoeudSel = cb; }
-    public void setOnAreteAjoutee(BiConsumer<Node, Node> cb)     { this.onAreteAjoutee = cb; }
-    public void setOnNoeudAjoute(Consumer<Node> cb)              { this.onNoeudAjoute = cb; }
-    public void setOnNoeudSupprime(Consumer<Node> cb)            { this.onNoeudSupprime = cb; }
-    public void setOnAreteSupprimee(Consumer<Edge> cb)           { this.onAreteSupprimee = cb; }
+    // ── Setters for callbacks ─────────────────────────────────────────────────
 
-    public Mode  getMode()      { return mode; }
-    public Agent getAgentSel()  { return agentSelectionne; }
+    /** @param cb callback invoked when an agent is selected */
+    public void setOnAgentSelected(Consumer<Agent> cb) { this.onAgentSelected = cb; }
+    /** @param cb callback invoked when a node is selected */
+    public void setOnNodeSelected(Consumer<Node> cb) { this.onNodeSelected = cb; }
+    /** @param cb callback invoked when an edge is added */
+    public void setOnEdgeAdded(BiConsumer<Node, Node> cb) { this.onEdgeAdded = cb; }
+    /** @param cb callback invoked when a node is added */
+    public void setOnNodeAdded(Consumer<Node> cb) { this.onNodeAdded = cb; }
+    /** @param cb callback invoked when a node is removed */
+    public void setOnNodeRemoved(Consumer<Node> cb) { this.onNodeRemoved = cb; }
+    /** @param cb callback invoked when an edge is removed */
+    public void setOnEdgeRemoved(Consumer<Edge> cb) { this.onEdgeRemoved = cb; }
 
+    // Deprecated French-named setters
+    /** @deprecated Use {@link #setOnAgentSelected(Consumer)} */
+    @Deprecated public void setOnAgentSelectionne(Consumer<Agent> cb) { setOnAgentSelected(cb); }
+    /** @deprecated Use {@link #setOnNodeSelected(Consumer)} */
+    @Deprecated public void setOnNoeudSelectionne(Consumer<Node> cb) { setOnNodeSelected(cb); }
+    /** @deprecated Use {@link #setOnEdgeAdded(BiConsumer)} */
+    @Deprecated public void setOnAreteAjoutee(BiConsumer<Node, Node> cb) { setOnEdgeAdded(cb); }
+    /** @deprecated Use {@link #setOnNodeAdded(Consumer)} */
+    @Deprecated public void setOnNoeudAjoute(Consumer<Node> cb) { setOnNodeAdded(cb); }
+    /** @deprecated Use {@link #setOnNodeRemoved(Consumer)} */
+    @Deprecated public void setOnNoeudSupprime(Consumer<Node> cb) { setOnNodeRemoved(cb); }
+    /** @deprecated Use {@link #setOnEdgeRemoved(Consumer)} */
+    @Deprecated public void setOnAreteSupprimee(Consumer<Edge> cb) { setOnEdgeRemoved(cb); }
+
+    /** @return the current interaction mode */
+    public Mode getMode() { return mode; }
+    /** @return the currently selected agent, or null */
+    public Agent getSelectedAgent() { return selectedAgent; }
+    /** @deprecated Use {@link #getSelectedAgent()} */
+    @Deprecated public Agent getAgentSel() { return selectedAgent; }
+
+    /**
+     * Sets the interaction mode and resets edge-building state.
+     *
+     * @param m the new mode
+     */
     public void setMode(Mode m) {
-        this.mode = m;
-        this.premierNoeudArete = null;
+        this.mode           = m;
+        this.firstEdgeNode  = null;
         requestFocusInWindow();
         repaint();
     }
 
-    /** Appelé par MainFrame après un tick logique. */
+    /** Requests a repaint. */
     public void rafraichir() { repaint(); }
 
+    /** Stops the animation timer. */
     public void stopAnimation() { animTimer.stop(); }
 
-    // ── Dessin principal ───────────────────────────────────────────────────────
+    // ── Main rendering ────────────────────────────────────────────────────────
+
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D) g;
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,       RenderingHints.VALUE_ANTIALIAS_ON);
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,  RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g2.setRenderingHint(RenderingHints.KEY_RENDERING,          RenderingHints.VALUE_RENDER_QUALITY);
-        g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL,     RenderingHints.VALUE_STROKE_PURE);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,      RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_RENDERING,         RenderingHints.VALUE_RENDER_QUALITY);
+        g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL,    RenderingHints.VALUE_STROKE_PURE);
 
-        dessinerGrille(g2);
-        dessinerAretes(g2);
-        dessinerPreviewArete(g2);
-        dessinerCheminAgent(g2);
-        dessinerNoeuds(g2);
-        dessinerAgents(g2);     // dessine TOUS les agents (y compris arrivés)
-        dessinerLegende(g2);
-        dessinerBandeauMode(g2);
+        drawGrid(g2);
+        drawEdges(g2);
+        drawEdgePreview(g2);
+        drawAgentPath(g2);
+        drawNodes(g2);
+        drawAgents(g2);
+        drawModeBar(g2);
     }
 
-    // ── Grille ─────────────────────────────────────────────────────────────────
-    private void dessinerGrille(Graphics2D g) {
+    // ── Grid ──────────────────────────────────────────────────────────────────
+
+    private void drawGrid(Graphics2D g) {
         g.setColor(GRID);
         g.setStroke(new BasicStroke(0.5f));
         for (int x = OFFSET % 40; x < getWidth();  x += 40) g.drawLine(x, 0, x, getHeight());
         for (int y = OFFSET % 40; y < getHeight(); y += 40) g.drawLine(0, y, getWidth(), y);
     }
 
-    // ── Arêtes (gradient couleur + épaisseur selon congestion) ────────────────
-    private void dessinerAretes(Graphics2D g) {
-        int maxCong = Math.max(1, engine.getCongestionMaxArete());
+    // ── Edges ─────────────────────────────────────────────────────────────────
+
+    private void drawEdges(Graphics2D g) {
+        int maxCong = Math.max(1, engine.getMaxEdgeCongestion());
         for (Edge e : engine.getGraph().getEdges()) {
             int x1 = sx(e.getSource().getX()),      y1 = sy(e.getSource().getY());
             int x2 = sx(e.getDestination().getX()), y2 = sy(e.getDestination().getY());
 
-            if (!e.isDisponible()) {
-                g.setColor(EDGE_BLOCKED);
-                g.setStroke(new BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
+            if (!e.isAvailable()) {
+                Color blockColor;
+                switch (e.getBlockType()) {
+                    case FIRE  -> blockColor = EDGE_FIRE;
+                    case FLOOD -> blockColor = EDGE_FLOOD;
+                    default    -> blockColor = EDGE_BLOCKED;
+                }
+                g.setColor(blockColor);
+                g.setStroke(new BasicStroke(4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
                         1, new float[]{6, 4}, 0));
                 g.drawLine(x1, y1, x2, y2);
                 g.setStroke(new BasicStroke(1f));
+
+                String sym = e.getBlockType() == Edge.BlockType.FIRE ? "🔥" : "🌊";
+                g.setFont(new Font("SansSerif", Font.PLAIN, 11));
+                FontMetrics fm = g.getFontMetrics();
+                int mx = (x1+x2)/2, my = (y1+y2)/2;
+                g.setColor(new Color(15,20,32,180));
+                g.fillRoundRect(mx-10, my-12, 20, 16, 4, 4);
+                g.setColor(blockColor);
+                g.drawString(sym, mx - fm.stringWidth(sym)/2, my);
                 continue;
             }
 
-            float ratio = Math.min(1f, (float) e.getAgentsEnTransit() / maxCong);
-            Color couleur = e.equals(areteSurvolee) ? SEL_COLOR : blend(EDGE_FREE, EDGE_CONG, ratio);
-            float ep = 3.5f + ratio * 5f;
+            float ratio   = Math.min(1f, (float) e.getAgentsInTransit() / e.getCapacity());
+            Color color   = e.equals(hoveredEdge) ? SEL_COLOR : blend(EDGE_FREE, EDGE_CONG, ratio);
+            float stroke  = 3.5f + ratio * 5f;
 
-            g.setColor(couleur);
-            g.setStroke(new BasicStroke(ep, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.setColor(color);
+            g.setStroke(new BasicStroke(stroke, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
             g.drawLine(x1, y1, x2, y2);
             g.setStroke(new BasicStroke(1f));
 
-            // Poids au milieu
-            labelBg(g, String.format("%.0f", e.getPoidsBase()), (x1+x2)/2+5, (y1+y2)/2-5,
+            // Draw arrow for directed edges
+            if (e.isDirected()) {
+                drawArrow(g, x1, y1, x2, y2, color);
+            }
+
+            // Draw speed modifier indicator
+            if (e.getSpeedModifier() != 1.0) {
+                String speedStr = String.format("×%.1f", e.getSpeedModifier());
+                int mx = (x1+x2)/2, my = (y1+y2)/2 + 12;
+                labelBg(g, speedStr, mx, my, new Font("SansSerif", Font.PLAIN, 9),
+                        e.getSpeedModifier() > 1.0 ? AGENT_ARRIVED : AGENT_PANIC,
+                        new Color(15, 20, 32, 180));
+            }
+
+            labelBg(g, String.format("%.0f", e.getBaseWeight()), (x1+x2)/2+5, (y1+y2)/2-5,
                     new Font("SansSerif", Font.PLAIN, 10), TEXT, new Color(15, 20, 32, 180));
         }
     }
 
-    // ── Preview arête ──────────────────────────────────────────────────────────
-    private void dessinerPreviewArete(Graphics2D g) {
-        if (mode != Mode.AJOUT_ARETE || premierNoeudArete == null || souris == null) return;
-        g.setColor(new Color(0, 215, 255, 100));
-        g.setStroke(new BasicStroke(2.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
-                1, new float[]{9, 5}, 0));
-        g.drawLine(sx(premierNoeudArete.getX()), sy(premierNoeudArete.getY()), souris.x, souris.y);
+    private void drawArrow(Graphics2D g, int x1, int y1, int x2, int y2, Color color) {
+        double angle = Math.atan2(y2 - y1, x2 - x1);
+        int mx = (x1 + x2) / 2;
+        int my = (y1 + y2) / 2;
+        int arrowLen = 10;
+        double arrowAngle = Math.PI / 6;
+        int ax1 = mx - (int)(arrowLen * Math.cos(angle - arrowAngle));
+        int ay1 = my - (int)(arrowLen * Math.sin(angle - arrowAngle));
+        int ax2 = mx - (int)(arrowLen * Math.cos(angle + arrowAngle));
+        int ay2 = my - (int)(arrowLen * Math.sin(angle + arrowAngle));
+        g.setColor(color);
+        g.setStroke(new BasicStroke(2f));
+        g.drawLine(mx, my, ax1, ay1);
+        g.drawLine(mx, my, ax2, ay2);
         g.setStroke(new BasicStroke(1f));
     }
 
-    // ── Chemin de l'agent sélectionné ─────────────────────────────────────────
-    private void dessinerCheminAgent(Graphics2D g) {
-        if (agentSelectionne == null) return;
-        List<Node> ch = agentSelectionne.getChemin();
+    // ── Edge preview (during AJOUT_ARETE) ────────────────────────────────────
+
+    private void drawEdgePreview(Graphics2D g) {
+        if (mode != Mode.AJOUT_ARETE || firstEdgeNode == null || mousePos == null) return;
+        g.setColor(new Color(0, 215, 255, 100));
+        g.setStroke(new BasicStroke(2.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
+                1, new float[]{9, 5}, 0));
+        g.drawLine(sx(firstEdgeNode.getX()), sy(firstEdgeNode.getY()), mousePos.x, mousePos.y);
+        g.setStroke(new BasicStroke(1f));
+    }
+
+    // ── Selected agent path ───────────────────────────────────────────────────
+
+    private void drawAgentPath(Graphics2D g) {
+        if (selectedAgent == null) return;
+        List<Node> ch = selectedAgent.getPath();
         if (ch == null || ch.size() < 2) return;
         g.setColor(new Color(0, 215, 255, 140));
         g.setStroke(new BasicStroke(6, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        int debut = Math.max(0, ch.indexOf(agentSelectionne.getPosition()));
-        for (int i = debut; i < ch.size() - 1; i++)
+        int start = Math.max(0, ch.indexOf(selectedAgent.getPosition()));
+        for (int i = start; i < ch.size() - 1; i++)
             g.drawLine(sx(ch.get(i).getX()), sy(ch.get(i).getY()),
                        sx(ch.get(i+1).getX()), sy(ch.get(i+1).getY()));
         g.setStroke(new BasicStroke(1f));
     }
 
-    // ── Nœuds ─────────────────────────────────────────────────────────────────
-    private void dessinerNoeuds(Graphics2D g) {
-        int[] densite = engine.getDensiteParNoeud();
-        int maxDen = Math.max(1, engine.getDensiteMax());
+    // ── Nodes ─────────────────────────────────────────────────────────────────
+
+    private void drawNodes(Graphics2D g) {
+        int[] density  = engine.getDensityPerNode();
+        int   maxDen   = Math.max(1, engine.getMaxDensity());
         List<Node> nodes = engine.getGraph().getNodes();
+
+        // Collect threatened nodes
+        java.util.Set<Node> threatened = new java.util.HashSet<>();
+        for (Node n : nodes) {
+            if (n instanceof DangerZone) {
+                threatened.addAll(((DangerZone) n).getNodesToBlock());
+            }
+        }
 
         for (int i = 0; i < nodes.size(); i++) {
             Node n   = nodes.get(i);
             int  x   = sx(n.getX()), y = sy(n.getY());
-            int  d   = i < densite.length ? densite[i] : 0;
+            int  d   = i < density.length ? density[i] : 0;
             float ratio = Math.min(1f, (float) d / maxDen);
 
-            boolean survole = n.equals(noeudSurvole);
-            boolean premier = n.equals(premierNoeudArete);
+            boolean hovered = n.equals(hoveredNode);
+            boolean first   = n.equals(firstEdgeNode);
 
-            // Couleur de base selon type
             Color base;
-            if (n instanceof ZoneDanger) {
-                ZoneDanger.TypeDanger t = ((ZoneDanger) n).getTypeDanger();
-                base = t == ZoneDanger.TypeDanger.FEU        ? NODE_DANGER_F
-                     : t == ZoneDanger.TypeDanger.INONDATION ? NODE_DANGER_I : NODE_DANGER_P;
-            } else if (n instanceof Sortie)  base = ((Sortie) n).isEstOuverte() ? NODE_SORTIE_O : NODE_SORTIE_F;
-            else if (n.isBloque())            base = new Color(55, 55, 65);
-            else                              base = blend(NODE_NORMAL, NODE_CONGESTION, ratio * 0.85f);
+            if (n instanceof DangerZone) {
+                DangerZone.DangerType t = ((DangerZone) n).getDangerType();
+                base = t == DangerZone.DangerType.FIRE         ? NODE_DANGER_F
+                     : t == DangerZone.DangerType.FLOOD        ? NODE_DANGER_I : NODE_DANGER_P;
+            } else if (n instanceof Exit) {
+                base = ((Exit) n).isOpen() ? NODE_EXIT_OPEN : NODE_EXIT_CLOSED;
+            } else if (n.isBlocked()) {
+                base = new Color(55, 55, 65);
+            } else if (threatened.contains(n)) {
+                base = NODE_THREATENED;
+            } else {
+                base = blend(NODE_NORMAL, NODE_CONGESTION, ratio * 0.85f);
+            }
 
-            // Ombre
             g.setColor(new Color(0, 0, 0, 70));
             g.fillOval(x-NODE_RADIUS+3, y-NODE_RADIUS+4, NODE_RADIUS*2, NODE_RADIUS*2);
 
-            // Corps dégradé
             Paint old = g.getPaint();
             g.setPaint(new GradientPaint(x-NODE_RADIUS, y-NODE_RADIUS, base.brighter(),
                                           x+NODE_RADIUS, y+NODE_RADIUS, base.darker().darker()));
             g.fillOval(x-NODE_RADIUS, y-NODE_RADIUS, NODE_RADIUS*2, NODE_RADIUS*2);
             g.setPaint(old);
 
-            // Bordure
             float sw; Color bc;
-            if      (premier)  { bc = SEL_COLOR;  sw = 3.5f; }
-            else if (survole)  { bc = Color.WHITE; sw = 2.5f; }
-            else               { bc = new Color(0, 0, 0, 100); sw = 1.5f; }
+            if      (first)   { bc = SEL_COLOR;  sw = 3.5f; }
+            else if (hovered) { bc = Color.WHITE; sw = 2.5f; }
+            else              { bc = new Color(0, 0, 0, 100); sw = 1.5f; }
             g.setColor(bc); g.setStroke(new BasicStroke(sw));
             g.drawOval(x-NODE_RADIUS, y-NODE_RADIUS, NODE_RADIUS*2, NODE_RADIUS*2);
             g.setStroke(new BasicStroke(1f));
 
-            // Icône
             g.setFont(new Font("SansSerif", Font.BOLD, 14));
             FontMetrics fm = g.getFontMetrics();
             String sym = null;
-            if (n instanceof ZoneDanger) {
-                ZoneDanger.TypeDanger t = ((ZoneDanger) n).getTypeDanger();
-                sym = t == ZoneDanger.TypeDanger.FEU ? "🔥"
-                    : t == ZoneDanger.TypeDanger.INONDATION ? "🌊" : "⚠";
-            } else if (n instanceof Sortie) sym = "⬖";
+            if (n instanceof DangerZone) {
+                DangerZone.DangerType t = ((DangerZone) n).getDangerType();
+                sym = t == DangerZone.DangerType.FIRE ? "🔥"
+                    : t == DangerZone.DangerType.FLOOD ? "🌊" : "⚠";
+            } else if (n instanceof Exit) sym = "⬖";
             if (sym != null) {
                 g.setColor(Color.WHITE);
                 g.drawString(sym, x - fm.stringWidth(sym)/2, y + fm.getAscent()/2 - 2);
             }
 
-            // Label
             labelBg(g, n.getId(), x, y+NODE_RADIUS+14,
                     new Font("SansSerif", Font.BOLD, 11), TEXT, new Color(15, 20, 32, 160));
 
-            // Badge nombre d'agents (en mouvement + arrivés sur ce nœud)
-            int total = compterAgentsSurNoeud(n);
+            // Tooltip with stats when hovered
+            if (hovered) {
+                String stats = String.format("cap:%d pass:%d", n.getCapacity(), n.getAgentsPassed());
+                labelBg(g, stats, x, y - NODE_RADIUS - 8,
+                        new Font("SansSerif", Font.PLAIN, 9), SEL_COLOR, new Color(15, 20, 32, 200));
+            }
+
+            int total = countAgentsAtNode(n);
             if (total > 0) {
                 int bx = x+NODE_RADIUS-7, by = y-NODE_RADIUS-7;
                 g.setColor(new Color(220, 50, 50));
@@ -284,158 +407,96 @@ public class GraphRenderer extends JPanel {
         }
     }
 
-    /** Compte tous les agents présents sur un nœud (y compris arrivés). */
-    private int compterAgentsSurNoeud(Node n) {
+    private int countAgentsAtNode(Node n) {
         int count = 0;
         for (Agent a : engine.getAgents())
             if (a.getPosition().equals(n)) count++;
         return count;
     }
 
-    // ── Agents — TOUS dessinés, y compris arrivés ─────────────────────────────
-    private void dessinerAgents(Graphics2D g) {
+    // ── Agents ────────────────────────────────────────────────────────────────
+
+    private void drawAgents(Graphics2D g) {
         List<Agent> agents = engine.getAgents();
         for (int idx = 0; idx < agents.size(); idx++) {
             Agent a = agents.get(idx);
 
-            // Position d'affichage interpolée
             int ax = sx(a.getDisplayX());
             int ay = sy(a.getDisplayY());
 
-            // Décalage pour plusieurs agents au même emplacement
             int slot = idx % 8;
             int dx = (int)(Math.cos(slot * Math.PI / 4) * 15);
             int dy = (int)(Math.sin(slot * Math.PI / 4) * 15);
 
             Color col;
-            if (a.getEtatDeplacement() == Agent.EtatDeplacement.ARRIVE) {
-                col = AGENT_ARRIVE;  // vert = arrivé, reste visible dans la sortie
+            if (a.getMovementState() == Agent.MovementState.ARRIVED) {
+                col = AGENT_ARRIVED;
             } else {
-                col = switch (a.getEtatPsychologique()) {
-                    case PANIQUE -> AGENT_PANIQUE;
-                    case FOLIE   -> AGENT_FOLIE;
-                    default -> switch (a.getEtatDeplacement()) {
-                        case EN_MOUVEMENT -> AGENT_CALME;
-                        case BLOQUE       -> AGENT_BLOQUE;
-                        default           -> new Color(170, 180, 205);
+                col = switch (a.getPsychologicalState()) {
+                    case PANIC   -> AGENT_PANIC;
+                    case MADNESS -> AGENT_MADNESS;
+                    default -> switch (a.getMovementState()) {
+                        case MOVING  -> AGENT_CALM;
+                        case BLOCKED -> AGENT_BLOCKED;
+                        default      -> new Color(170, 180, 205);
                     };
                 };
             }
 
-            boolean sel = a.equals(agentSelectionne);
+            boolean sel = a.equals(selectedAgent);
             int r = sel ? AGENT_RADIUS + 4 : AGENT_RADIUS;
 
-            // Halo sélection
             if (sel) {
                 g.setColor(new Color(0, 215, 255, 50));
                 g.fillOval(ax+dx-r-5, ay+dy-r-5, (r+5)*2, (r+5)*2);
             }
 
-            // Ombre
             g.setColor(new Color(0, 0, 0, 90));
             g.fillOval(ax+dx-r+2, ay+dy-r+3, r*2, r*2);
 
-            // Corps dégradé
             Paint old = g.getPaint();
             g.setPaint(new GradientPaint(ax+dx-r, ay+dy-r, col.brighter(),
                                           ax+dx+r, ay+dy+r, col.darker()));
             g.fillOval(ax+dx-r, ay+dy-r, r*2, r*2);
             g.setPaint(old);
 
-            // Bordure
             g.setColor(sel ? SEL_COLOR : new Color(0, 0, 0, 120));
             g.setStroke(new BasicStroke(sel ? 2.5f : 1f));
             g.drawOval(ax+dx-r, ay+dy-r, r*2, r*2);
             g.setStroke(new BasicStroke(1f));
 
-            // Petite icône ✓ pour les arrivés
-            if (a.getEtatDeplacement() == Agent.EtatDeplacement.ARRIVE) {
+            if (a.getMovementState() == Agent.MovementState.ARRIVED) {
                 g.setColor(Color.WHITE);
                 g.setFont(new Font("SansSerif", Font.BOLD, 9));
                 g.drawString("✓", ax+dx-3, ay+dy+4);
             }
 
-            // Label ID
             labelBg(g, a.getId(), ax+dx+r+3, ay+dy+4,
                     new Font("SansSerif", Font.BOLD, 9), TEXT, new Color(15, 20, 32, 160));
         }
     }
 
-    // ── Légende en 3 colonnes ─────────────────────────────────────────────────
-    private void dessinerLegende(Graphics2D g) {
-        int bx = 10, by = getHeight() - 230;
-        int colW = 158, rowH = 18, padX = 12, padY = 16;
-        int rows = 8;
-        int totalW = colW * 3 + padX;
-        int totalH = rows * rowH + padY * 2 + 18;
+    // ── Mode banner ───────────────────────────────────────────────────────────
 
-        g.setColor(new Color(15, 20, 32, 215));
-        g.fillRoundRect(bx, by, totalW, totalH, 12, 12);
-        g.setColor(new Color(70, 95, 140, 120));
-        g.drawRoundRect(bx, by, totalW, totalH, 12, 12);
-
-        g.setFont(new Font("SansSerif", Font.BOLD, 11));
-        g.setColor(SEL_COLOR);
-        g.drawString("NŒUDS",  bx+padX,        by+padY);
-        g.drawString("ARÊTES", bx+padX+colW,   by+padY);
-        g.drawString("AGENTS", bx+padX+colW*2, by+padY);
-
-        g.setColor(new Color(70, 95, 140, 70));
-        g.drawLine(bx+colW+padX/2,   by+5, bx+colW+padX/2,   by+totalH-5);
-        g.drawLine(bx+colW*2+padX/2, by+5, bx+colW*2+padX/2, by+totalH-5);
-
-        int y0 = by + padY + 14;
-        // Nœuds
-        ligne(g, bx+padX, y0,         NODE_NORMAL,              "Normal");
-        ligne(g, bx+padX, y0+rowH,    NODE_SORTIE_O,            "Sortie ouverte");
-        ligne(g, bx+padX, y0+rowH*2,  NODE_SORTIE_F,            "Sortie fermée");
-        ligne(g, bx+padX, y0+rowH*3,  NODE_DANGER_F,            "Feu");
-        ligne(g, bx+padX, y0+rowH*4,  NODE_DANGER_I,            "Inondation");
-        ligne(g, bx+padX, y0+rowH*5,  NODE_DANGER_P,            "Pers. dangereuse");
-        ligne(g, bx+padX, y0+rowH*6,  new Color(55,55,65),      "Bloqué");
-        // Arêtes
-        ligne(g, bx+padX+colW, y0,        EDGE_FREE,                    "Libre");
-        ligne(g, bx+padX+colW, y0+rowH,   blend(EDGE_FREE,EDGE_CONG,.5f),"Mi-chargée");
-        ligne(g, bx+padX+colW, y0+rowH*2, EDGE_CONG,                    "Saturée");
-        ligne(g, bx+padX+colW, y0+rowH*3, EDGE_BLOCKED,                 "Bloquée");
-        ligne(g, bx+padX+colW, y0+rowH*4, SEL_COLOR,                    "Trajet sél.");
-        // Agents
-        ligne(g, bx+padX+colW*2, y0,        AGENT_CALME,               "Calme / En mvt");
-        ligne(g, bx+padX+colW*2, y0+rowH,   AGENT_PANIQUE,             "Panique");
-        ligne(g, bx+padX+colW*2, y0+rowH*2, AGENT_FOLIE,               "Folie");
-        ligne(g, bx+padX+colW*2, y0+rowH*3, AGENT_BLOQUE,              "Bloqué");
-        ligne(g, bx+padX+colW*2, y0+rowH*4, AGENT_ARRIVE,              "Arrivé (✓)");
-        ligne(g, bx+padX+colW*2, y0+rowH*5, new Color(170,180,205),    "En attente");
-    }
-
-    private void ligne(Graphics2D g, int x, int y, Color c, String lbl) {
-        g.setColor(c);
-        g.fillRoundRect(x, y-9, 13, 13, 4, 4);
-        g.setColor(new Color(0, 0, 0, 70));
-        g.drawRoundRect(x, y-9, 13, 13, 4, 4);
-        g.setFont(new Font("SansSerif", Font.PLAIN, 10));
-        g.setColor(TEXT);
-        g.drawString(lbl, x+17, y);
-    }
-
-    // ── Bandeau mode ───────────────────────────────────────────────────────────
-    private void dessinerBandeauMode(Graphics2D g) {
+    private void drawModeBar(Graphics2D g) {
         String txt;
         Color accent;
         switch (mode) {
-            case AJOUT_NOEUD       -> { txt = "✚ NŒUD — clic pour placer";                      accent = new Color(60,180,100); }
-            case AJOUT_SORTIE      -> { txt = "🚪 SORTIE — clic pour placer";                    accent = NODE_SORTIE_O; }
-            case AJOUT_ARETE       -> { txt = premierNoeudArete == null
-                                            ? "─ ARÊTE — clic sur le 1er nœud"
-                                            : "─ ARÊTE — clic sur le 2e nœud";                  accent = SEL_COLOR; }
-            case AJOUT_DANGER      -> { txt = "⚠ DANGER — clic pour placer";                    accent = NODE_DANGER_F; }
-            case AJOUT_AGENT       -> { txt = "👤 AGENT — clic droit sur un nœud pour ajouter"; accent = AGENT_CALME; }
-            case SUPPRESSION       -> { txt = "✖ SUPPRIMER — clic sur nœud ou arête";           accent = AGENT_BLOQUE; }
-            case SUPPRESSION_AGENT -> { txt = "✖ SUPPRIMER AGENT — clic sur un agent";          accent = AGENT_PANIQUE; }
-            default                -> { txt = "SÉLECTION — clic droit sur nœud pour options";   accent = TEXT; }
+            case AJOUT_NOEUD       -> { txt = "[+] NOEUD - clic pour placer";                         accent = new Color(60,180,100); }
+            case AJOUT_SORTIE      -> { txt = "[S] SORTIE - clic pour placer";                        accent = NODE_EXIT_OPEN; }
+            case AJOUT_ARETE       -> { txt = firstEdgeNode == null
+                                             ? "[-] ARETE - clic sur le 1er noeud"
+                                             : "[-] ARETE - clic sur le 2e noeud";                    accent = SEL_COLOR; }
+            case AJOUT_DANGER      -> { txt = "[!] DANGER - clic pour placer (actif en simulation)";  accent = NODE_DANGER_F; }
+            case AJOUT_AGENT       -> { txt = "[A] AGENT - clic sur un noeud pour ajouter";           accent = AGENT_CALM; }
+            case SUPPRESSION       -> { txt = "[X] SUPPRIMER - clic sur noeud ou arete";              accent = AGENT_BLOCKED; }
+            case SUPPRESSION_AGENT -> { txt = "[X] SUPPRIMER AGENT - clic sur un agent";              accent = AGENT_PANIC; }
+            case SUPPRESSION_ARETE -> { txt = "[X] SUPPRIMER ARETE - clic sur une arete";             accent = EDGE_FIRE; }
+            default                -> { txt = "SELECTION - clic droit sur noeud pour options";        accent = TEXT; }
         }
-        g.setFont(new Font("SansSerif", Font.BOLD, 12));
-        FontMetrics fm = g.getFontMetrics();
+        Font bannerFont = new Font("Dialog", Font.BOLD, 12);
+        g.setFont(bannerFont);
+        FontMetrics fm = g.getFontMetrics(bannerFont);
         int tw = fm.stringWidth(txt);
         int px = getWidth()/2 - tw/2 - 14, py = 8;
         g.setColor(new Color(15, 20, 32, 215));
@@ -446,12 +507,21 @@ public class GraphRenderer extends JPanel {
         g.drawString(txt, px+14, py+18);
     }
 
-    // ── Utilitaires ────────────────────────────────────────────────────────────
+    // ── Utilities ─────────────────────────────────────────────────────────────
+
     int    sx(double gx) { return (int)(gx * SCALE + OFFSET); }
     int    sy(double gy) { return (int)(gy * SCALE + OFFSET); }
     double gx(int   sx)  { return (sx - OFFSET) / SCALE; }
     double gy(int   sy)  { return (sy - OFFSET) / SCALE; }
 
+    /**
+     * Blends two colors by a ratio t (0.0=a, 1.0=b).
+     *
+     * @param a first color
+     * @param b second color
+     * @param t blend factor [0,1]
+     * @return blended color
+     */
     Color blend(Color a, Color b, float t) {
         t = Math.max(0, Math.min(1, t));
         return new Color(
@@ -471,32 +541,32 @@ public class GraphRenderer extends JPanel {
         g.drawString(txt, cx-tw/2, cy);
     }
 
-    // ── Hit-tests ──────────────────────────────────────────────────────────────
+    // ── Hit tests ─────────────────────────────────────────────────────────────
+
     Node nodeAt(int mx, int my) {
         int r2 = (NODE_RADIUS+5) * (NODE_RADIUS+5);
         for (Node n : engine.getGraph().getNodes()) {
-            int dx = mx - sx(n.getX()), dy = my - sy(n.getY());
-            if (dx*dx + dy*dy <= r2) return n;
+            int ddx = mx - sx(n.getX()), ddy = my - sy(n.getY());
+            if (ddx*ddx + ddy*ddy <= r2) return n;
         }
         return null;
     }
 
-    /** Cherche un agent à la position de la souris (tous états, y compris ARRIVE). */
     Agent agentAt(int mx, int my) {
         int threshold2 = (AGENT_RADIUS+8) * (AGENT_RADIUS+8);
         for (Agent a : engine.getAgents()) {
-            int dx = mx - sx(a.getDisplayX()), dy = my - sy(a.getDisplayY());
-            if (dx*dx + dy*dy <= threshold2) return a;
+            int ddx = mx - sx(a.getDisplayX()), ddy = my - sy(a.getDisplayY());
+            if (ddx*ddx + ddy*ddy <= threshold2) return a;
         }
         return null;
     }
 
     Edge edgeAt(int mx, int my) {
         for (Edge e : engine.getGraph().getEdges()) {
-            double d = ptSegDist(mx, my,
+            double dist = ptSegDist(mx, my,
                 sx(e.getSource().getX()),       sy(e.getSource().getY()),
                 sx(e.getDestination().getX()),  sy(e.getDestination().getY()));
-            if (d < 10) return e;
+            if (dist < 10) return e;
         }
         return null;
     }
@@ -509,132 +579,148 @@ public class GraphRenderer extends JPanel {
         return Math.hypot(px-(x1+t*dx), py-(y1+t*dy));
     }
 
-    // ── Menu contextuel nœud ───────────────────────────────────────────────────
-    private void showContextMenu(Node n, int mx, int my) {
+    // ── Context menus ─────────────────────────────────────────────────────────
+
+    private void showNodeContextMenu(Node n, int mx, int my) {
         JPopupMenu menu = new JPopupMenu();
         menu.setBackground(new Color(25, 32, 50));
 
-        JLabel titre = new JLabel("  " + n.getId() + "  (" + n.getClass().getSimpleName() + ")  ");
-        titre.setForeground(SEL_COLOR);
-        titre.setFont(new Font("SansSerif", Font.BOLD, 12));
-        menu.add(titre);
+        JLabel title = new JLabel("  " + n.getId() + "  (" + n.getClass().getSimpleName() + ")  ");
+        title.setForeground(SEL_COLOR);
+        title.setFont(new Font("SansSerif", Font.BOLD, 12));
+        menu.add(title);
         menu.addSeparator();
 
-        // Supprimer le nœud
-        JMenuItem del = item("✖ Supprimer ce nœud", AGENT_BLOQUE);
+        // Stats display
+        JLabel statsLabel = new JLabel("  Passages: " + n.getAgentsPassed()
+                + " | Cap: " + n.getCapacity() + "  ");
+        statsLabel.setForeground(TEXT);
+        statsLabel.setFont(new Font("SansSerif", Font.PLAIN, 11));
+        menu.add(statsLabel);
+        menu.addSeparator();
+
+        JMenuItem del = menuItem("✖ Supprimer ce nœud", AGENT_BLOCKED);
         del.addActionListener(e -> {
-            engine.onNoeudSupprime(n);
-            engine.getGraph().supprimerNode(n);
-            if (onNoeudSupprime != null) onNoeudSupprime.accept(n);
+            engine.onNodeRemoved(n);
+            engine.getGraph().removeNode(n);
+            if (onNodeRemoved != null) onNodeRemoved.accept(n);
             repaint();
         });
         menu.add(del);
         menu.addSeparator();
 
-        // Conversions de type
-        if (!(n instanceof Sortie) && !(n instanceof ZoneDanger)) {
-            JMenuItem toSortie = item("🚪 Convertir en Sortie", NODE_SORTIE_O);
-            toSortie.addActionListener(e -> convertirEnSortie(n));
-            menu.add(toSortie);
-
+        if (!(n instanceof Exit) && !(n instanceof DangerZone)) {
+            JMenuItem toExit = menuItem("🚪 Convertir en Sortie", NODE_EXIT_OPEN);
+            toExit.addActionListener(e -> convertToExit(n));
+            menu.add(toExit);
             JMenu dm = new JMenu("⚠ Convertir en danger…");
             dm.setForeground(NODE_DANGER_F);
-            for (ZoneDanger.TypeDanger t : ZoneDanger.TypeDanger.values()) {
+            for (DangerZone.DangerType t : DangerZone.DangerType.values()) {
                 JMenuItem di = new JMenuItem(t.name());
-                di.addActionListener(ev -> convertirEnDanger(n, t));
+                di.addActionListener(ev -> convertToDanger(n, t));
                 dm.add(di);
             }
             menu.add(dm);
         }
-        if (n instanceof Sortie) {
-            Sortie s = (Sortie) n;
-            JMenuItem tog = item(s.isEstOuverte() ? "🔒 Fermer" : "🔓 Ouvrir",
-                                  s.isEstOuverte() ? AGENT_BLOQUE : NODE_SORTIE_O);
-            tog.addActionListener(e -> { if (s.isEstOuverte()) s.fermer(); else s.ouvrir(); repaint(); });
+        if (n instanceof Exit) {
+            Exit ex = (Exit) n;
+            JMenuItem tog = menuItem(ex.isOpen() ? "🔒 Fermer" : "🔓 Ouvrir",
+                                     ex.isOpen() ? AGENT_BLOCKED : NODE_EXIT_OPEN);
+            tog.addActionListener(e -> { if (ex.isOpen()) ex.close(); else ex.open(); repaint(); });
             menu.add(tog);
-            menu.add(itemAction("↩ En nœud normal", NODE_NORMAL, () -> convertirEnNormal(n)));
+            menu.add(menuItemAction("↩ En nœud normal", NODE_NORMAL, () -> convertToNormal(n)));
         }
-        if (n instanceof ZoneDanger) {
-            menu.add(itemAction("↩ Supprimer le danger", NODE_NORMAL, () -> convertirEnNormal(n)));
+        if (n instanceof DangerZone) {
+            menu.add(menuItemAction("↩ Supprimer le danger", NODE_NORMAL, () -> convertToNormal(n)));
         }
 
         menu.addSeparator();
-        // Ajouter un agent
-        JMenuItem addAg = item("👤 Ajouter un agent ici", AGENT_CALME);
-        addAg.addActionListener(e -> dialogAjoutAgent(n));
+        JMenuItem addAg = menuItem("👤 Ajouter un agent ici", AGENT_CALM);
+        addAg.addActionListener(e -> showAddAgentDialog(n));
         menu.add(addAg);
 
         menu.show(this, mx, my);
     }
 
-    /** Menu contextuel sur agent (clic droit). */
-    private void showContextMenuAgent(Agent a, int mx, int my) {
+    private void showAgentContextMenu(Agent a, int mx, int my) {
         JPopupMenu menu = new JPopupMenu();
         menu.setBackground(new Color(25, 32, 50));
-        JLabel titre = new JLabel("  Agent " + a.getId() + "  ");
-        titre.setForeground(AGENT_CALME);
-        titre.setFont(new Font("SansSerif", Font.BOLD, 12));
-        menu.add(titre);
+        JLabel title = new JLabel("  Agent " + a.getId() + "  ");
+        title.setForeground(AGENT_CALM);
+        title.setFont(new Font("SansSerif", Font.BOLD, 12));
+        menu.add(title);
         menu.addSeparator();
-        menu.add(itemAction("✖ Supprimer cet agent", AGENT_BLOQUE, () -> {
-            engine.supprimerAgent(a);
-            if (agentSelectionne == a) { agentSelectionne = null; if (onAgentSel != null) onAgentSel.accept(null); }
+        menu.add(menuItemAction("✖ Supprimer cet agent", AGENT_BLOCKED, () -> {
+            engine.removeAgent(a);
+            if (selectedAgent == a) {
+                selectedAgent = null;
+                if (onAgentSelected != null) onAgentSelected.accept(null);
+            }
             repaint();
         }));
         menu.show(this, mx, my);
     }
 
-    private JMenuItem item(String txt, Color fg) {
+    private JMenuItem menuItem(String txt, Color fg) {
         JMenuItem it = new JMenuItem(txt);
-        it.setForeground(fg);
-        it.setBackground(new Color(25, 32, 50));
+        it.setForeground(fg); it.setBackground(new Color(25, 32, 50));
         it.setFont(new Font("SansSerif", Font.PLAIN, 11));
         return it;
     }
 
-    private JMenuItem itemAction(String txt, Color fg, Runnable action) {
-        JMenuItem it = item(txt, fg);
+    private JMenuItem menuItemAction(String txt, Color fg, Runnable action) {
+        JMenuItem it = menuItem(txt, fg);
         it.addActionListener(e -> action.run());
         return it;
     }
 
-    // ── Conversions de type nœud ───────────────────────────────────────────────
-    private void convertirEnSortie(Node n) {
-        remplacerNoeud(n, new Sortie(engine.getGraph().genererIdUnique("S"), n.getX(), n.getY(), 10));
-    }
-    private void convertirEnDanger(Node n, ZoneDanger.TypeDanger type) {
-        remplacerNoeud(n, new ZoneDanger(engine.getGraph().genererIdUnique("Z"), n.getX(), n.getY(), type, 8));
-    }
-    private void convertirEnNormal(Node n) {
-        remplacerNoeud(n, new Node(engine.getGraph().genererIdUnique("N"), n.getX(), n.getY()));
+    // ── Node type conversions ─────────────────────────────────────────────────
+
+    private void convertToExit(Node n) {
+        replaceNode(n, new Exit(engine.getGraph().generateUniqueId("S"), n.getX(), n.getY(), 10));
     }
 
-    private void remplacerNoeud(Node ancien, Node nouveau) {
-        Graph g = engine.getGraph();
-        List<Edge> aretes = new java.util.ArrayList<>(g.getEdgesDuNoeud(ancien));
-        for (Edge e : aretes) g.supprimerEdge(e);
-        g.supprimerNode(ancien);
-        g.ajouterNode(nouveau);
-        for (Edge e : aretes) {
-            Node src  = e.getSource().equals(ancien)      ? nouveau : e.getSource();
-            Node dest = e.getDestination().equals(ancien) ? nouveau : e.getDestination();
-            g.ajouterEdge(new Edge(src, dest, e.getPoidsBase()));
+    private void convertToDanger(Node n, DangerZone.DangerType type) {
+        replaceNode(n, new DangerZone(engine.getGraph().generateUniqueId("Z"), n.getX(), n.getY(), type, 8));
+        if (engine.isRunning()) engine.notifyGraphChanged();
+    }
+
+    private void convertToNormal(Node n) {
+        replaceNode(n, new Node(engine.getGraph().generateUniqueId("N"), n.getX(), n.getY()));
+    }
+
+    private void replaceNode(Node old, Node replacement) {
+        Graph gr = engine.getGraph();
+        List<Edge> edges = new java.util.ArrayList<>(gr.getEdgesOfNode(old));
+        for (Edge e : edges) gr.removeEdge(e);
+        gr.removeNode(old);
+        gr.addNode(replacement);
+        for (Edge e : edges) {
+            Node src  = e.getSource().equals(old)      ? replacement : e.getSource();
+            Node dest = e.getDestination().equals(old) ? replacement : e.getDestination();
+            gr.addEdge(new Edge(src, dest, e.getBaseWeight()));
         }
         for (Agent a : engine.getAgents()) {
-            if (a.getPosition().equals(ancien))    a.teleporterVers(nouveau);
-            if (ancien.equals(a.getDestination())) { a.setDestination(nouveau); a.recalculerChemin(); }
+            if (a.getPosition().equals(old))    a.teleportTo(replacement);
+            if (old.equals(a.getDestination())) { a.setDestination(replacement); a.recalculatePath(); }
         }
         repaint();
     }
 
-    // ── Dialogue ajout d'agent ─────────────────────────────────────────────────
-    void dialogAjoutAgent(Node posDep) {
-        List<Node> sorties = new java.util.ArrayList<>();
+    // ── Add agent dialog ──────────────────────────────────────────────────────
+
+    /**
+     * Opens a dialog to add an agent at the specified starting node.
+     *
+     * @param startNode the node where the agent will start
+     */
+    void showAddAgentDialog(Node startNode) {
+        List<Node> exits = new java.util.ArrayList<>();
         for (Node n : engine.getGraph().getNodes())
-            if (n instanceof Sortie && !n.isBloque()) sorties.add(n);
-        if (sorties.isEmpty()) {
-            JOptionPane.showMessageDialog(this,
-                "Aucune sortie disponible.", "Impossible", JOptionPane.WARNING_MESSAGE);
+            if (n instanceof Exit && !n.isBlocked()) exits.add(n);
+        if (exits.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Aucune sortie disponible.", "Impossible",
+                    JOptionPane.WARNING_MESSAGE);
             return;
         }
 
@@ -644,27 +730,30 @@ public class GraphRenderer extends JPanel {
         dlg.getContentPane().setBackground(new Color(22, 28, 44));
         GridBagConstraints gc = new GridBagConstraints();
         gc.insets = new Insets(5, 10, 5, 10);
-        gc.fill = GridBagConstraints.HORIZONTAL;
+        gc.fill   = GridBagConstraints.HORIZONTAL;
 
-        String[] destLabels = sorties.stream().map(Node::getId).toArray(String[]::new);
-        JComboBox<String> comboDest   = new JComboBox<>(destLabels);
-        JComboBox<String> comboPsycho = new JComboBox<>(new String[]{"CALME","PANIQUE","FOLIE"});
-        JComboBox<String> comboComp   = new JComboBox<>(new String[]{"LAISSE_PASSER","PRIORITAIRE","SUIT_AGENT"});
+        String[] destLabels = exits.stream().map(Node::getId).toArray(String[]::new);
+        JComboBox<String> comboDest    = new JComboBox<>(destLabels);
+        JComboBox<String> comboPsycho  = new JComboBox<>(new String[]{"CALM","PANIC","MADNESS"});
+        JComboBox<String> comboBehav   = new JComboBox<>(new String[]{"YIELD","PRIORITY","FOLLOW"});
+        JComboBox<String> comboMode    = new JComboBox<>(new String[]{"FIXED","RANDOM_WALK",
+                "FLEE_DESTINATION","TOWARD_DENSE","FLEE_DENSITY"});
+        JComboBox<String> comboArrival = new JComboBox<>(new String[]{"STOP","RANDOM_DESTINATION","DELETE"});
         JSpinner spinVit = new JSpinner(new SpinnerNumberModel(1, 1, 5, 1));
 
         Object[][] rows = {
-            {"Départ :", new JLabel(posDep.getId())},
+            {"Départ :", new JLabel(startNode.getId())},
             {"Destination :", comboDest},
             {"État psycho :", comboPsycho},
-            {"Comportement :", comboComp},
+            {"Comportement :", comboBehav},
+            {"Mode destination :", comboMode},
+            {"À l'arrivée :", comboArrival},
             {"Vitesse :", spinVit},
         };
         for (int i = 0; i < rows.length; i++) {
             gc.gridx=0; gc.gridy=i;
-            JLabel lbl = new JLabel((String) rows[i][0]);
-            lbl.setForeground(TEXT);
-            dlg.add(lbl, gc);
-            gc.gridx=1;
+            JLabel lbl = new JLabel((String) rows[i][0]); lbl.setForeground(TEXT);
+            dlg.add(lbl, gc); gc.gridx=1;
             dlg.add((Component) rows[i][1], gc);
         }
 
@@ -675,17 +764,22 @@ public class GraphRenderer extends JPanel {
         dlg.add(btns, gc);
 
         ok.addActionListener(e -> {
-            Node dest = sorties.get(comboDest.getSelectedIndex());
-            Agent.EtatPsychologique psycho = Agent.EtatPsychologique.valueOf(
+            Node dest = exits.get(comboDest.getSelectedIndex());
+            Agent.PsychologicalState psycho = Agent.PsychologicalState.valueOf(
                     (String) comboPsycho.getSelectedItem());
-            Agent.Comportement comp = Agent.Comportement.valueOf(
-                    (String) comboComp.getSelectedItem());
-            String agId = engine.getGraph().genererIdUnique("AG");
-            Agent ag = new Agent(agId, posDep, dest, engine.getGraph(),
-                    (int) spinVit.getValue(), 1.0, comp, psycho, Agent.ModeDestination.FIXE);
-            engine.ajouterAgent(ag);
-            if (engine.isEnCours()) ag.initialiser();
-            System.out.println("[UI] Agent " + agId + " ajouté en " + posDep.getId());
+            Agent.Behavior behav = Agent.Behavior.valueOf(
+                    (String) comboBehav.getSelectedItem());
+            Agent.DestinationMode destMode = Agent.DestinationMode.valueOf(
+                    (String) comboMode.getSelectedItem());
+            Agent.ArrivalBehavior arrival = Agent.ArrivalBehavior.valueOf(
+                    (String) comboArrival.getSelectedItem());
+            String agId = engine.getGraph().generateUniqueId("AG");
+            Agent ag = new Agent(agId, startNode, dest, engine.getGraph(),
+                    (int) spinVit.getValue(), 1.0, behav, psycho, destMode);
+            ag.setArrivalBehavior(arrival);
+            engine.addAgent(ag);
+            if (engine.isRunning()) ag.initialize();
+            System.out.println("[UI] Agent " + agId + " added at " + startNode.getId());
             dlg.dispose();
             repaint();
         });
@@ -695,56 +789,52 @@ public class GraphRenderer extends JPanel {
         dlg.setVisible(true);
     }
 
-    // ── Souris ─────────────────────────────────────────────────────────────────
+    // Deprecated alias
+    /** @deprecated Use {@link #showAddAgentDialog(Node)} */
+    @Deprecated void dialogAjoutAgent(Node n) { showAddAgentDialog(n); }
+
+    // ── Mouse handling ────────────────────────────────────────────────────────
+
     private void initMouse() {
         addMouseListener(new MouseAdapter() {
             @Override public void mouseClicked(MouseEvent e)  { handleClick(e); }
             @Override public void mousePressed(MouseEvent e)  {
                 if (mode == Mode.SELECTION && !SwingUtilities.isRightMouseButton(e)) {
-                    // Priorité drag agent > drag nœud ?
-                    // On ne drag que les nœuds pour éviter confusion
-                    noeudDragged = nodeAt(e.getX(), e.getY());
-                    if (noeudDragged != null) dragStart = e.getPoint();
+                    draggedNode = nodeAt(e.getX(), e.getY());
+                    if (draggedNode != null) dragStart = e.getPoint();
                 }
             }
             @Override public void mouseReleased(MouseEvent e) {
-                noeudDragged = null; dragStart = null;
+                draggedNode = null; dragStart = null;
             }
         });
 
         addMouseMotionListener(new MouseMotionAdapter() {
             @Override public void mouseMoved(MouseEvent e) {
-                souris = e.getPoint();
+                mousePos = e.getPoint();
                 Node nn = nodeAt(e.getX(), e.getY());
                 Edge ne = nn == null ? edgeAt(e.getX(), e.getY()) : null;
-                if (nn != noeudSurvole || ne != areteSurvolee) {
-                    noeudSurvole  = nn;
-                    areteSurvolee = ne;
-                }
-                // toujours repaint géré par animTimer
+                hoveredNode = nn;
+                hoveredEdge = ne;
             }
 
             @Override public void mouseDragged(MouseEvent e) {
-                souris = e.getPoint();
-                if (mode == Mode.SELECTION && noeudDragged != null && dragStart != null) {
+                mousePos = e.getPoint();
+                if (mode == Mode.SELECTION && draggedNode != null && dragStart != null) {
                     double nx = gx(e.getX()), ny = gy(e.getY());
-                    // Anti-superposition
-                    boolean conflit = false;
+                    boolean conflict = false;
                     for (Node other : engine.getGraph().getNodes()) {
-                        if (other.equals(noeudDragged)) continue;
-                        if (Math.hypot(other.getX()-nx, other.getY()-ny) < MIN_DIST_NOEUD) {
-                            conflit = true; break;
+                        if (other.equals(draggedNode)) continue;
+                        if (Math.hypot(other.getX()-nx, other.getY()-ny) < MIN_DIST_NODE) {
+                            conflict = true; break;
                         }
                     }
-                    if (!conflit) {
-                        noeudDragged.setX(nx);
-                        noeudDragged.setY(ny);
-                        // Les agents sur ce nœud suivent visuellement
+                    if (!conflict) {
+                        draggedNode.setX(nx);
+                        draggedNode.setY(ny);
                         for (Agent a : engine.getAgents()) {
-                            if (a.getPosition().equals(noeudDragged)
-                                    && a.getNoeudCible() == null) {
-                                a.syncAffichageAvecNoeud();
-                            }
+                            if (a.getPosition().equals(draggedNode) && a.getTargetNode() == null)
+                                a.syncDisplayWithNode();
                         }
                     }
                 }
@@ -755,12 +845,22 @@ public class GraphRenderer extends JPanel {
     private void handleClick(MouseEvent e) {
         int mx = e.getX(), my = e.getY();
 
-        // Clic droit : menu contextuel sur agent d'abord, puis nœud
         if (SwingUtilities.isRightMouseButton(e)) {
             Agent a = agentAt(mx, my);
-            if (a != null) { showContextMenuAgent(a, mx, my); return; }
-            Node  n = nodeAt(mx, my);
-            if (n != null) { showContextMenu(n, mx, my); return; }
+            if (a != null) { showAgentContextMenu(a, mx, my); return; }
+            Node n = nodeAt(mx, my);
+            if (n != null) { showNodeContextMenu(n, mx, my); return; }
+            if (mode == Mode.SELECTION) {
+                Edge edge = edgeAt(mx, my);
+                if (edge != null && onEdgeRemoved != null) {
+                    // Show edge stats in tooltip area (log)
+                    System.out.println("[Edge] " + edge.getSource().getId() + "→"
+                            + edge.getDestination().getId()
+                            + " | passages=" + edge.getAgentsPassed()
+                            + " | speed=" + edge.getSpeedModifier()
+                            + " | directed=" + edge.isDirected());
+                }
+            }
             return;
         }
 
@@ -768,91 +868,111 @@ public class GraphRenderer extends JPanel {
             case SELECTION -> {
                 Agent a = agentAt(mx, my);
                 if (a != null) {
-                    agentSelectionne = a.equals(agentSelectionne) ? null : a;
-                    if (onAgentSel != null) onAgentSel.accept(agentSelectionne);
+                    selectedAgent = a.equals(selectedAgent) ? null : a;
+                    if (onAgentSelected != null) onAgentSelected.accept(selectedAgent);
                 } else {
                     Node n = nodeAt(mx, my);
-                    if (n != null) { if (onNoeudSel != null) onNoeudSel.accept(n); }
-                    else { agentSelectionne = null; if (onAgentSel != null) onAgentSel.accept(null); }
+                    if (n != null) {
+                        if (onNodeSelected != null) onNodeSelected.accept(n);
+                    } else {
+                        selectedAgent = null;
+                        if (onAgentSelected != null) onAgentSelected.accept(null);
+                    }
                 }
             }
 
             case AJOUT_NOEUD -> {
                 double nx = gx(mx), ny = gy(my);
-                if (engine.getGraph().tropProche(nx, ny, MIN_DIST_NOEUD)) {
-                    JOptionPane.showMessageDialog(this, "Trop proche d'un nœud existant.", "Invalide", JOptionPane.WARNING_MESSAGE);
+                if (engine.getGraph().isTooClose(nx, ny, MIN_DIST_NODE)) {
+                    JOptionPane.showMessageDialog(this, "Trop proche d'un nœud existant.",
+                            "Invalide", JOptionPane.WARNING_MESSAGE);
                     return;
                 }
-                Node n = new Node(engine.getGraph().genererIdUnique("N"), nx, ny);
-                engine.getGraph().ajouterNode(n);
-                if (onNoeudAjoute != null) onNoeudAjoute.accept(n);
+                String capStr = JOptionPane.showInputDialog(this,
+                        "Capacité du nœud (nombre max d'agents, défaut 3) :", "3");
+                if (capStr == null) return;
+                int cap = 3;
+                try { cap = Math.max(1, Integer.parseInt(capStr.trim())); } catch (NumberFormatException ignored) {}
+                Node n = new Node(engine.getGraph().generateUniqueId("N"), nx, ny);
+                n.setCapacity(cap);
+                engine.getGraph().addNode(n);
+                if (onNodeAdded != null) onNodeAdded.accept(n);
             }
 
             case AJOUT_SORTIE -> {
                 double nx = gx(mx), ny = gy(my);
-                if (engine.getGraph().tropProche(nx, ny, MIN_DIST_NOEUD)) {
-                    JOptionPane.showMessageDialog(this, "Trop proche d'un nœud existant.", "Invalide", JOptionPane.WARNING_MESSAGE);
+                if (engine.getGraph().isTooClose(nx, ny, MIN_DIST_NODE)) {
+                    JOptionPane.showMessageDialog(this, "Trop proche d'un nœud existant.",
+                            "Invalide", JOptionPane.WARNING_MESSAGE);
                     return;
                 }
-                Sortie s = new Sortie(engine.getGraph().genererIdUnique("S"), nx, ny, 10);
-                engine.getGraph().ajouterNode(s);
-                if (onNoeudAjoute != null) onNoeudAjoute.accept(s);
+                Exit ex = new Exit(engine.getGraph().generateUniqueId("S"), nx, ny, 10);
+                engine.getGraph().addNode(ex);
+                if (onNodeAdded != null) onNodeAdded.accept(ex);
             }
 
             case AJOUT_DANGER -> {
                 double nx = gx(mx), ny = gy(my);
-                if (engine.getGraph().tropProche(nx, ny, MIN_DIST_NOEUD)) {
-                    JOptionPane.showMessageDialog(this, "Trop proche d'un nœud existant.", "Invalide", JOptionPane.WARNING_MESSAGE);
+                if (engine.getGraph().isTooClose(nx, ny, MIN_DIST_NODE)) {
+                    JOptionPane.showMessageDialog(this, "Trop proche d'un nœud existant.",
+                            "Invalide", JOptionPane.WARNING_MESSAGE);
                     return;
                 }
-                String[] types = {"FEU — se propage", "INONDATION — bloque arêtes", "PERSONNE DANGEREUSE — ralentit"};
-                int choix = JOptionPane.showOptionDialog(this, "Type de danger ?", "Zone de danger",
-                        JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, types, types[0]);
-                if (choix < 0) return;
-                ZoneDanger z = new ZoneDanger(engine.getGraph().genererIdUnique("Z"),
-                        nx, ny, ZoneDanger.TypeDanger.values()[choix], 8);
-                engine.getGraph().ajouterNode(z);
-                if (onNoeudAjoute != null) onNoeudAjoute.accept(z);
+                String[] types = {"FIRE — se propage", "FLOOD — bloque arêtes",
+                                  "DANGEROUS_PERSON — ralentit"};
+                int choice = JOptionPane.showOptionDialog(this, "Type de danger ?", "Zone de danger",
+                        JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE,
+                        null, types, types[0]);
+                if (choice < 0) return;
+                DangerZone z = new DangerZone(engine.getGraph().generateUniqueId("Z"),
+                        nx, ny, DangerZone.DangerType.values()[choice], 8);
+                engine.getGraph().addNode(z);
+                if (onNodeAdded != null) onNodeAdded.accept(z);
+                if (engine.isRunning()) {
+                    engine.notifyGraphChanged();
+                    System.out.println("[UI] Danger added during simulation — path recalculation");
+                }
             }
 
             case AJOUT_AGENT -> {
-                // En mode AJOUT_AGENT, le clic gauche sur un nœud ouvre le dialogue
                 Node n = nodeAt(mx, my);
-                if (n != null) dialogAjoutAgent(n);
+                if (n != null) showAddAgentDialog(n);
                 else JOptionPane.showMessageDialog(this,
-                        "Cliquez sur un nœud existant pour placer un agent.", "Info",
+                        "Cliquez sur un nœud existant.", "Info",
                         JOptionPane.INFORMATION_MESSAGE);
             }
 
             case AJOUT_ARETE -> {
-                Node clique = nodeAt(mx, my);
-                if (clique == null) return;
-                if (premierNoeudArete == null) {
-                    premierNoeudArete = clique;
-                } else if (!premierNoeudArete.equals(clique)) {
-                    if (!engine.getGraph().areteExiste(premierNoeudArete, clique)) {
-                        if (onAreteAjoutee != null) onAreteAjoutee.accept(premierNoeudArete, clique);
+                Node clicked = nodeAt(mx, my);
+                if (clicked == null) return;
+                if (firstEdgeNode == null) {
+                    firstEdgeNode = clicked;
+                } else if (!firstEdgeNode.equals(clicked)) {
+                    if (!engine.getGraph().edgeExists(firstEdgeNode, clicked)) {
+                        if (onEdgeAdded != null) onEdgeAdded.accept(firstEdgeNode, clicked);
                     } else {
                         JOptionPane.showMessageDialog(this, "Cette arête existe déjà.", "Info",
                                 JOptionPane.INFORMATION_MESSAGE);
                     }
-                    premierNoeudArete = null;
+                    firstEdgeNode = null;
                 } else {
-                    premierNoeudArete = null;
+                    firstEdgeNode = null;
                 }
             }
 
             case SUPPRESSION -> {
                 Node n = nodeAt(mx, my);
                 if (n != null) {
-                    engine.onNoeudSupprime(n);
-                    engine.getGraph().supprimerNode(n);
-                    if (onNoeudSupprime != null) onNoeudSupprime.accept(n);
+                    engine.onNodeRemoved(n);
+                    engine.getGraph().removeNode(n);
+                    if (onNodeRemoved != null) onNodeRemoved.accept(n);
+                    if (engine.isRunning()) engine.notifyGraphChanged();
                 } else {
                     Edge ar = edgeAt(mx, my);
                     if (ar != null) {
-                        engine.getGraph().supprimerEdge(ar);
-                        if (onAreteSupprimee != null) onAreteSupprimee.accept(ar);
+                        engine.getGraph().removeEdge(ar);
+                        if (onEdgeRemoved != null) onEdgeRemoved.accept(ar);
+                        if (engine.isRunning()) engine.notifyGraphChanged();
                     }
                 }
             }
@@ -860,18 +980,32 @@ public class GraphRenderer extends JPanel {
             case SUPPRESSION_AGENT -> {
                 Agent a = agentAt(mx, my);
                 if (a != null) {
-                    engine.supprimerAgent(a);
-                    if (a.equals(agentSelectionne)) {
-                        agentSelectionne = null;
-                        if (onAgentSel != null) onAgentSel.accept(null);
+                    engine.removeAgent(a);
+                    if (a.equals(selectedAgent)) {
+                        selectedAgent = null;
+                        if (onAgentSelected != null) onAgentSelected.accept(null);
                     }
+                }
+            }
+
+            case SUPPRESSION_ARETE -> {
+                Edge ar = edgeAt(mx, my);
+                if (ar != null) {
+                    engine.getGraph().removeEdge(ar);
+                    if (onEdgeRemoved != null) onEdgeRemoved.accept(ar);
+                    if (engine.isRunning()) engine.notifyGraphChanged();
+                } else {
+                    JOptionPane.showMessageDialog(this,
+                            "Cliquez précisément sur une arête.", "Info",
+                            JOptionPane.INFORMATION_MESSAGE);
                 }
             }
         }
         repaint();
     }
 
-    // ── Clavier ────────────────────────────────────────────────────────────────
+    // ── Keyboard ─────────────────────────────────────────────────────────────
+
     private void initKeys() {
         addKeyListener(new KeyAdapter() {
             @Override public void keyPressed(KeyEvent e) {
