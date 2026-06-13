@@ -700,65 +700,34 @@ public class Agent implements Serializable {
 
     // ── Getters / Setters ──────────────────────────────────────────────────────
 
-    /** @return the agent's unique ID */
     public String getId() { return id; }
-    /** @return the current position node */
     public Node getPosition() { return position; }
-    /** @return the destination node */
     public Node getDestination() { return destination; }
-    /** @return the departure node for current edge */
     public Node getDepartureNode() { return departureNode; }
-    /** @return the target node being moved toward */
     public Node getTargetNode() { return targetNode; }
-    /** @return the speed rating */
     public int getSpeed() { return speed; }
-    /** @return the density tolerance (0.0–1.0) */
     public double getDensityTolerance() { return densityTolerance; }
-    /** @return the current behavior */
     public Behavior getBehavior() { return behavior; }
-    /** @return the current psychological state */
     public PsychologicalState getPsychologicalState() { return psychologicalState; }
-    /** @return the destination selection mode */
     public DestinationMode getDestinationMode() { return destinationMode; }
-    /** @return the movement state */
     public MovementState getMovementState() { return movementState; }
-    /** @return the computed path */
     public List<Node> getPath() { return path; }
-    /** @return the current display X position */
     public double getDisplayX() { return displayX; }
-    /** @return the current display Y position */
     public double getDisplayY() { return displayY; }
-    /** @return the edge traversal progress (0.0–1.0) */
     public double getEdgeProgress() { return edgeProgress; }
-    /** @return the arrival behavior */
     public ArrivalBehavior getArrivalBehavior() { return arrivalBehavior; }
-    /** @return whether this agent is marked for deletion */
     public boolean isMarkedForDeletion() { return markedForDeletion; }
-    /** @return the number of node transitions this agent has made */
     public int getAgentsPassed() { return agentsPassed; }
 
-    /** @param v new speed value (minimum 1) */
     public void setSpeed(int v) { this.speed = Math.max(1, v); }
-    /** @param t new density tolerance (0.0–1.0) */
     public void setDensityTolerance(double t) { this.densityTolerance = Math.min(1.0, Math.max(0.0, t)); }
-    /** @param c new behavior */
     public void setBehavior(Behavior c) { this.behavior = c; this.initialBehavior = c; }
-    /** @param m new destination mode */
     public void setDestinationMode(DestinationMode m) { this.destinationMode = m; }
-    /** @param d new destination node */
     public void setDestination(Node d) { this.destination = d; }
-    /** @param a list of other agents in the simulation */
     public void setOtherAgents(List<Agent> a) { this.otherAgents = a; }
-    /** @param e new movement state */
     public void setMovementState(MovementState e) { this.movementState = e; }
-    /** @param ab new arrival behavior */
     public void setArrivalBehavior(ArrivalBehavior ab) { this.arrivalBehavior = ab; }
 
-    /**
-     * Sets the psychological state and resets auto-panic tracking.
-     *
-     * @param state the new psychological state
-     */
     public void setPsychologicalState(PsychologicalState state) {
         this.psychologicalState        = state;
         this.initialPsychologicalState = state;
