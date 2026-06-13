@@ -130,17 +130,12 @@ public class GraphRenderer extends JPanel {
 
     // ── Setters for callbacks ─────────────────────────────────────────────────
 
-    /** @param cb callback invoked when an agent is selected */
+    /** @param cb callback invoked when an agent is selected *
     public void setOnAgentSelected(Consumer<Agent> cb) { this.onAgentSelected = cb; }
-    /** @param cb callback invoked when a node is selected */
     public void setOnNodeSelected(Consumer<Node> cb) { this.onNodeSelected = cb; }
-    /** @param cb callback invoked when an edge is added */
     public void setOnEdgeAdded(BiConsumer<Node, Node> cb) { this.onEdgeAdded = cb; }
-    /** @param cb callback invoked when a node is added */
     public void setOnNodeAdded(Consumer<Node> cb) { this.onNodeAdded = cb; }
-    /** @param cb callback invoked when a node is removed */
     public void setOnNodeRemoved(Consumer<Node> cb) { this.onNodeRemoved = cb; }
-    /** @param cb callback invoked when an edge is removed */
     public void setOnEdgeRemoved(Consumer<Edge> cb) { this.onEdgeRemoved = cb; }
 
     // Deprecated French-named setters
