@@ -325,7 +325,7 @@ public class Agent implements Serializable {
      * @return animation step size per frame
      */
     public double getAnimationSpeed() {
-        double base = 0.013 * speed;
+        double base = 0.007 * speed;
         double edgeMult = (currentEdge != null) ? currentEdge.getSpeedModifier() : 1.0;
         return switch (psychologicalState) {
             case PANIC    -> base * 2.2 * edgeMult;
@@ -360,7 +360,7 @@ public class Agent implements Serializable {
                 && (psychologicalState == PsychologicalState.PANIC
                     || psychologicalState == PsychologicalState.MADNESS)) {
             autoPanicked      = false;
-            psychologicalState = initialPsychologicalState;
+            psychologicalState = PsychologicalState.CALM;
             behavior           = initialBehavior;
             System.out.println("[Agent " + id + "] Safe zone → reverting to " + initialPsychologicalState);
             if (movementState != MovementState.BLOCKED) recalculatePath();
