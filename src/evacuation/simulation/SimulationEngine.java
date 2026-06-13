@@ -398,15 +398,10 @@ public class SimulationEngine implements Serializable {
         }
     }
 
-    /** @return the current tick number */
     public int getTick() { return tick; }
-    /** @return true if the simulation is currently running */
     public boolean isRunning() { return running; }
-    /** @return the list of agents */
     public List<Agent> getAgents() { return agents; }
-    /** @return the simulation graph */
     public Graph getGraph() { return graph; }
-    /** @param g the new graph */
     public void setGraph(Graph g) { this.graph = g; }
 
     // ── Deprecated French-named aliases ──────────────────────────────────────
