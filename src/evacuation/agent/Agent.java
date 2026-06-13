@@ -199,9 +199,13 @@ public class Agent implements Serializable {
      */
     public void reset() {
         releaseCurrentEdge();
-        this.position              = startingPosition;
+        Node safeStart = graph.getNodes().contains(startingPosition)
+                         ? startingPosition
+                         : graph.getClosestNode(startingPosition, null);
+        if (safeStart == null) safeStart = startingPosition;
+        this.position              = safeStart;
         this.destination           = initialDestination;
-        this.departureNode         = startingPosition;
+        this.departureNode         = safeStart;
         this.targetNode            = null;
         this.edgeProgress          = 1.0;
         this.displayX              = safeStart.getX();
