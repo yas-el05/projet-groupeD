@@ -204,8 +204,8 @@ public class Agent implements Serializable {
         this.departureNode         = startingPosition;
         this.targetNode            = null;
         this.edgeProgress          = 1.0;
-        this.displayX              = startingPosition.getX();
-        this.displayY              = startingPosition.getY();
+        this.displayX              = safeStart.getX();
+        this.displayY              = safeStart.getY();
         this.movementState         = MovementState.WAITING;
         this.psychologicalState    = initialPsychologicalState;
         this.behavior              = initialBehavior;
