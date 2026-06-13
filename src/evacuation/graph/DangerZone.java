@@ -232,11 +232,8 @@ public class DangerZone extends Node {
         return Collections.unmodifiableSet(nodesToBlock);
     }
 
-    /** @return the risk level of this danger zone */
     public int getRiskLevel() { return riskLevel; }
-    /** @return the danger type */
     public DangerType getDangerType() { return dangerType; }
-    /** @return the danger type as a string */
     public String getDangerTypeStr() { return dangerType.name(); }
 
     // ── Deprecated French-named aliases ──────────────────────────────────────
