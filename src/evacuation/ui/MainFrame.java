@@ -99,14 +99,14 @@ public class MainFrame extends JFrame {
         toolGroup = new ButtonGroup();
 
         btnSel        = toolBtn("Sel.",          "Selectionner / deplacer noeuds",              GraphRenderer.NODE_NORMAL.darker());
-        btnNode       = toolBtn("[+] Noeud",     "Ajouter un noeud",                             new Color(60, 180, 100));
-        btnExit       = toolBtn("[S] Sortie",    "Ajouter une sortie",                          GraphRenderer.NODE_EXIT_OPEN);
-        btnEdge       = toolBtn("[-] Arete",     "Relier 2 noeuds",                             GraphRenderer.SEL_COLOR.darker());
-        btnDanger     = toolBtn("[!] Danger",    "Ajouter un danger (fonctionne en direct !)",  GraphRenderer.NODE_DANGER_F);
-        btnAddAgent   = toolBtn("[A] Agent",     "Ajouter un agent",                            GraphRenderer.AGENT_CALM.darker());
-        btnDelete      = toolBtn("[X] Noeud",   "Supprimer un noeud (ou arete)",                new Color(180, 40, 40));
-        btnDeleteAgent = toolBtn("[X] Agent",   "Supprimer un agent",                           new Color(200, 80, 30));
-        btnDeleteEdge  = toolBtn("[X] Arete",   "Supprimer une arete",                          new Color(200, 100, 30));
+        btnNode       = toolBtn("Noeud",     "Ajouter un noeud",                             new Color(60, 180, 100));
+        btnExit       = toolBtn("Sortie",    "Ajouter une sortie",                          GraphRenderer.NODE_EXIT_OPEN);
+        btnEdge       = toolBtn("Arete",     "Relier 2 noeuds",                             GraphRenderer.SEL_COLOR.darker());
+        btnDanger     = toolBtn("Danger",    "Ajouter un danger (fonctionne en direct !)",  GraphRenderer.NODE_DANGER_F);
+        btnAddAgent   = toolBtn("Agent",     "Ajouter un agent",                            GraphRenderer.AGENT_CALM.darker());
+        btnDelete      = toolBtn("Noeud",   "Supprimer un noeud (ou arete)",                new Color(180, 40, 40));
+        btnDeleteAgent = toolBtn("Agent",   "Supprimer un agent",                           new Color(200, 80, 30));
+        btnDeleteEdge  = toolBtn("Arete",   "Supprimer une arete",                          new Color(200, 100, 30));
 
         for (JToggleButton b : new JToggleButton[]{
                 btnSel, btnNode, btnExit, btnEdge, btnDanger,

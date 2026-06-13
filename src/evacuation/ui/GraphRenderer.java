@@ -482,16 +482,16 @@ public class GraphRenderer extends JPanel {
         String txt;
         Color accent;
         switch (mode) {
-            case AJOUT_NOEUD       -> { txt = "[+] NOEUD - clic pour placer";                         accent = new Color(60,180,100); }
-            case AJOUT_SORTIE      -> { txt = "[S] SORTIE - clic pour placer";                        accent = NODE_EXIT_OPEN; }
+            case AJOUT_NOEUD       -> { txt = "NOEUD - clic pour placer";                         accent = new Color(60,180,100); }
+            case AJOUT_SORTIE      -> { txt = "SORTIE - clic pour placer";                        accent = NODE_EXIT_OPEN; }
             case AJOUT_ARETE       -> { txt = firstEdgeNode == null
-                                             ? "[-] ARETE - clic sur le 1er noeud"
-                                             : "[-] ARETE - clic sur le 2e noeud";                    accent = SEL_COLOR; }
-            case AJOUT_DANGER      -> { txt = "[!] DANGER - clic pour placer (actif en simulation)";  accent = NODE_DANGER_F; }
-            case AJOUT_AGENT       -> { txt = "[A] AGENT - clic sur un noeud pour ajouter";           accent = AGENT_CALM; }
-            case SUPPRESSION       -> { txt = "[X] SUPPRIMER - clic sur noeud ou arete";              accent = AGENT_BLOCKED; }
-            case SUPPRESSION_AGENT -> { txt = "[X] SUPPRIMER AGENT - clic sur un agent";              accent = AGENT_PANIC; }
-            case SUPPRESSION_ARETE -> { txt = "[X] SUPPRIMER ARETE - clic sur une arete";             accent = EDGE_FIRE; }
+                                             ? "ARETE - clic sur le 1er noeud"
+                                             : "ARETE - clic sur le 2e noeud";                    accent = SEL_COLOR; }
+            case AJOUT_DANGER      -> { txt = "DANGER - clic pour placer (actif en simulation)";  accent = NODE_DANGER_F; }
+            case AJOUT_AGENT       -> { txt = "AGENT - clic sur un noeud pour ajouter";           accent = AGENT_CALM; }
+            case SUPPRESSION       -> { txt = "SUPPRIMER - clic sur noeud ou arete";              accent = AGENT_BLOCKED; }
+            case SUPPRESSION_AGENT -> { txt = "SUPPRIMER AGENT - clic sur un agent";              accent = AGENT_PANIC; }
+            case SUPPRESSION_ARETE -> { txt = "SUPPRIMER ARETE - clic sur une arete";             accent = EDGE_FIRE; }
             default                -> { txt = "SELECTION - clic droit sur noeud pour options";        accent = TEXT; }
         }
         Font bannerFont = new Font("Dialog", Font.BOLD, 12);
