@@ -232,7 +232,7 @@ public class SimulationEngine implements Serializable {
                         + " returning (target node removed)");
 
             } else if (agent.getPosition().equals(removedNode)) {
-                Node closest = graph.getClosestNode(removedNode, null);
+                Node closest = graph.getClosestNode(removedNode, removedNode);
                 if (closest != null) {
                     agent.induceMadness();
                     agent.teleportTo(closest);
